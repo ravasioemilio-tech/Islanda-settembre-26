@@ -48,11 +48,15 @@
 <div id="view-budget" style="display:none">
   <div class="section-title">Budget del viaggio</div>
   <div class="budget-summary" id="budgetSummary"></div>
+  <div class="section-title">💰 Saldi tra i partecipanti</div>
+  <div class="balances-box" id="balancesBox"></div>
   <div class="section-title">Spese registrate</div>
   <div class="expense-list" id="expenseList"></div>
 </div>
 
 <div id="view-info" style="display:none">
+  <div class="section-title">Partecipanti al viaggio</div>
+  <div class="participants-box" id="participantsBox"></div>
   <div class="section-title">Pernottamenti</div>
   <div class="info-list" id="pernottamentiList"></div>
   <div class="section-title">Dati e backup</div>
@@ -74,6 +78,14 @@
 <div class="modal-backdrop" id="expenseModalBackdrop">
   <div class="modal">
     <h2>Nuova spesa</h2>
+    <div class="field">
+      <label>Tipo spesa</label>
+      <div class="chip-row" id="expTypeChips"></div>
+    </div>
+    <div class="field">
+      <label>Pagato da</label>
+      <select id="expPaidBy"></select>
+    </div>
     <div class="field">
       <label>Giorno</label>
       <select id="expDay"></select>

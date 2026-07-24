@@ -10,6 +10,7 @@ const STORE_KEYS = {
   expenses: 'iceland_expenses_v1',
   startTimes: 'iceland_start_times_v1',
   durationOverrides: 'iceland_duration_overrides_v1',
+  participants: 'iceland_participants_v1',
 };
 
 function loadStore(key, fallback) {
@@ -29,6 +30,8 @@ let personalNotes = loadStore(STORE_KEYS.notes, {});
 let expenses = loadStore(STORE_KEYS.expenses, []);
 let startTimes = loadStore(STORE_KEYS.startTimes, {});             // { "1": "08:00", ... }
 let durationOverrides = loadStore(STORE_KEYS.durationOverrides, {}); // { "1_0": {guida:40, visita:30}, ... }
+let participants = loadStore(STORE_KEYS.participants,
+  ['Emilio', 'Giusi', 'Marco', 'Giulio', 'Grazia', 'Ettore']);
 
 const DEFAULT_START_TIME = '08:00';
 
@@ -70,6 +73,44 @@ function computeDayChain(day) {
   return out;
 }
 
+// ---------------- cassa comune: saldi tra partecipanti ----------------
+function computeBalances() {
+  const net = {};
+  participants.forEach(p => { net[p] = 0; });
+  expenses.forEach(e => {
+    if (e.shared === false) return; // spesa personale, non entra nella cassa comune
+    if (!e.paidBy || !(e.paidBy in net)) return;
+    const share = e.amount / participants.length;
+    net[e.paidBy] += e.amount - share;
+    participants.forEach(p => {
+      if (p !== e.paidBy) net[p] -= share;
+    });
+  });
+  return net; // positivo = deve ricevere, negativo = deve dare
+}
+
+function simplifySettlement(net) {
+  const creditors = [];
+  const debtors = [];
+  Object.entries(net).forEach(([name, bal]) => {
+    if (bal > 0.005) creditors.push({ name, amt: bal });
+    else if (bal < -0.005) debtors.push({ name, amt: -bal });
+  });
+  creditors.sort((a, b) => b.amt - a.amt);
+  debtors.sort((a, b) => b.amt - a.amt);
+  const tx = [];
+  let i = 0, j = 0;
+  while (i < debtors.length && j < creditors.length) {
+    const pay = Math.min(debtors[i].amt, creditors[j].amt);
+    tx.push({ from: debtors[i].name, to: creditors[j].name, amount: pay });
+    debtors[i].amt -= pay;
+    creditors[j].amt -= pay;
+    if (debtors[i].amt < 0.005) i++;
+    if (creditors[j].amt < 0.005) j++;
+  }
+  return tx;
+}
+
 let currentDayId = TRIP_DATA.days[0].id;
 let currentView = 'days';
 
@@ -87,6 +128,29 @@ function priorityInfo(p) {
 }
 
 function stopKey(dayId, idx) { return `${dayId}_${idx}`; }
+
+// ---------------- foto da Wikipedia (fetch on-demand + cache) ----------------
+const WIKI_IMG_CACHE_KEY = 'iceland_wiki_img_cache_v1';
+let wikiImgCache = loadStore(WIKI_IMG_CACHE_KEY, {}); // { "Gullfoss": "https://...jpg" | null }
+
+async function getWikiImage(title) {
+  if (!title) return null;
+  if (title in wikiImgCache) return wikiImgCache[title];
+  try {
+    const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('not found');
+    const json = await res.json();
+    const src = (json.thumbnail && json.thumbnail.source) || null;
+    wikiImgCache[title] = src;
+    saveStore(WIKI_IMG_CACHE_KEY, wikiImgCache);
+    return src;
+  } catch (e) {
+    wikiImgCache[title] = null;
+    saveStore(WIKI_IMG_CACHE_KEY, wikiImgCache);
+    return null;
+  }
+}
 
 // ---------------- render: day tabs ----------------
 function renderDayTabs() {
@@ -185,6 +249,12 @@ function renderDayView() {
         <div class="stop-main">
           <div class="stop-title">${idx + 1}. ${s.a || ''}</div>
           <div class="stop-sub">da ${s.da || ''}</div>
+          <div class="stop-info-btns">
+            ${s.descrizione ? `<span class="info-btn desc-toggle" data-idx="${idx}">📝 Descrizione</span>` : ''}
+            ${s.wiki ? `<span class="info-btn photo-toggle" data-idx="${idx}">📷 Foto</span>` : ''}
+          </div>
+          ${s.descrizione ? `<div class="stop-descrizione" data-idx="${idx}"><p>${s.descrizione}</p></div>` : ''}
+          ${s.wiki ? `<div class="stop-photo-panel" data-idx="${idx}" data-wiki="${s.wiki.replace(/"/g, '&quot;')}" data-loaded="0"></div>` : ''}
           <div class="stop-times">
             🕗 <b>${formatMin(partenza)}</b> → <b>${formatMin(arrivo)}</b>
             <span class="stop-time-edit-toggle" data-idx="${idx}">✏️ orari${isOverridden ? ' •' : ''}</span>
@@ -237,6 +307,38 @@ function renderDayView() {
     });
   });
 
+  // wire description toggle (bottone separato)
+  list.querySelectorAll('.desc-toggle').forEach(el => {
+    el.addEventListener('click', () => {
+      const idx = el.dataset.idx;
+      const box = list.querySelector(`.stop-descrizione[data-idx="${idx}"]`);
+      if (box) box.classList.toggle('open');
+      el.classList.toggle('active', box && box.classList.contains('open'));
+    });
+  });
+
+  // wire photo toggle (bottone separato) — carica la foto al primo apertura
+  list.querySelectorAll('.photo-toggle').forEach(el => {
+    el.addEventListener('click', async () => {
+      const idx = el.dataset.idx;
+      const box = list.querySelector(`.stop-photo-panel[data-idx="${idx}"]`);
+      if (!box) return;
+      box.classList.toggle('open');
+      el.classList.toggle('active', box.classList.contains('open'));
+      if (box.classList.contains('open') && box.dataset.loaded === '0') {
+        box.dataset.loaded = '1';
+        const wikiTitle = box.dataset.wiki;
+        box.innerHTML = `<div class="stop-photo-loading">📷 carico foto…</div>`;
+        const src = await getWikiImage(wikiTitle);
+        if (src) {
+          box.innerHTML = `<img src="${src}" alt="${wikiTitle}" loading="lazy">`;
+        } else {
+          box.innerHTML = `<div class="stop-photo-loading">📷 nessuna foto disponibile</div>`;
+        }
+      }
+    });
+  });
+
   // wire textarea auto-save
   list.querySelectorAll('.stop-personal textarea').forEach(ta => {
     const idx = ta.closest('.stop-personal').dataset.idx;
@@ -280,9 +382,11 @@ function renderDayView() {
 
 // ---------------- render: budget ----------------
 function renderBudget() {
-  const persone = TRIP_DATA.persone;
+  const persone = participants.length;
   const totale = expenses.reduce((sum, e) => sum + e.amount, 0);
-  const perPersona = totale / persone;
+  const totaleComune = expenses.filter(e => e.shared !== false).reduce((s, e) => s + e.amount, 0);
+  const totalePersonale = totale - totaleComune;
+  const perPersona = totaleComune / persone;
 
   const byDay = {};
   expenses.forEach(e => {
@@ -291,13 +395,38 @@ function renderBudget() {
 
   const summary = document.getElementById('budgetSummary');
   let rows = `
-    <div class="row total"><span class="label">Totale speso</span><span class="value">${fmtEuro(totale)}</span></div>
-    <div class="row"><span class="label">A persona (÷${persone})</span><span class="value">${fmtEuro(perPersona)}</span></div>
+    <div class="row total"><span class="label">Totale speso (cassa comune + personali)</span><span class="value">${fmtEuro(totale)}</span></div>
+    <div class="row"><span class="label">Cassa comune</span><span class="value">${fmtEuro(totaleComune)}</span></div>
+    <div class="row"><span class="label">Quota a persona (÷${persone})</span><span class="value">${fmtEuro(perPersona)}</span></div>
+    <div class="row"><span class="label">Spese personali (totale)</span><span class="value">${fmtEuro(totalePersonale)}</span></div>
   `;
   Object.keys(byDay).sort().forEach(day => {
     rows += `<div class="row"><span class="label">${day}</span><span class="value">${fmtEuro(byDay[day])}</span></div>`;
   });
   summary.innerHTML = rows;
+
+  // ---- saldi tra partecipanti ----
+  const net = computeBalances();
+  const tx = simplifySettlement(net);
+  const balBox = document.getElementById('balancesBox');
+  let balHtml = '<div class="balance-people">';
+  participants.forEach(p => {
+    const bal = net[p] || 0;
+    const cls = bal > 0.005 ? 'credit' : (bal < -0.005 ? 'debit' : 'even');
+    const label = bal > 0.005 ? `deve ricevere ${fmtEuro(bal)}` : (bal < -0.005 ? `deve dare ${fmtEuro(-bal)}` : 'in pari');
+    balHtml += `<div class="balance-person ${cls}"><span class="bp-name">${p}</span><span class="bp-val">${label}</span></div>`;
+  });
+  balHtml += '</div>';
+  if (tx.length === 0) {
+    balHtml += `<div class="empty-state">Nessuna spesa di cassa comune ancora, oppure i conti sono già in pari.</div>`;
+  } else {
+    balHtml += '<div class="settle-list">';
+    tx.forEach(t => {
+      balHtml += `<div class="settle-row">👉 <b>${t.from}</b> deve dare <b>${fmtEuro(t.amount)}</b> a <b>${t.to}</b></div>`;
+    });
+    balHtml += '</div>';
+  }
+  balBox.innerHTML = balHtml;
 
   const list = document.getElementById('expenseList');
   if (expenses.length === 0) {
@@ -308,10 +437,11 @@ function renderBudget() {
   [...expenses].reverse().forEach(e => {
     const item = document.createElement('div');
     item.className = 'expense-item';
+    const typeTag = e.shared === false ? '👤 personale' : '🤝 cassa comune';
     item.innerHTML = `
       <div class="info">
         <div class="cat">${e.category} — ${e.day}</div>
-        <div class="meta">${e.note ? e.note + ' · ' : ''}${new Date(e.ts).toLocaleDateString('it-IT')}</div>
+        <div class="meta">${typeTag} · pagato da ${e.paidBy || '—'}${e.note ? ' · ' + e.note : ''}</div>
       </div>
       <div style="display:flex;align-items:center;">
         <div class="amount">${fmtEuro(e.amount)}</div>
@@ -330,8 +460,29 @@ function renderBudget() {
   });
 }
 
-// ---------------- render: info / pernottamenti ----------------
+// ---------------- render: info / pernottamenti / partecipanti ----------------
+function renderParticipants() {
+  const box = document.getElementById('participantsBox');
+  box.innerHTML = participants.map((name, i) =>
+    `<input type="text" class="participant-input" data-i="${i}" value="${name}">`
+  ).join('');
+  box.querySelectorAll('.participant-input').forEach(inp => {
+    inp.addEventListener('blur', () => {
+      const i = parseInt(inp.dataset.i, 10);
+      const newVal = inp.value.trim() || `Persona ${i + 1}`;
+      const oldVal = participants[i];
+      if (newVal === oldVal) return;
+      // aggiorna anche i riferimenti "pagato da" nelle spese già registrate
+      expenses.forEach(e => { if (e.paidBy === oldVal) e.paidBy = newVal; });
+      saveStore(STORE_KEYS.expenses, expenses);
+      participants[i] = newVal;
+      saveStore(STORE_KEYS.participants, participants);
+    });
+  });
+}
+
 function renderInfo() {
+  renderParticipants();
   const list = document.getElementById('pernottamentiList');
   list.innerHTML = '';
   TRIP_DATA.pernottamenti.forEach(p => {
@@ -367,6 +518,7 @@ document.querySelectorAll('.navbtn').forEach(btn => {
 // ---------------- expense modal ----------------
 const expModalBackdrop = document.getElementById('expenseModalBackdrop');
 let selectedCategory = TRIP_DATA.budget_categories[0];
+let selectedType = 'shared'; // 'shared' = cassa comune, 'personal' = spesa personale
 
 function openExpenseModal() {
   const daySel = document.getElementById('expDay');
@@ -377,6 +529,21 @@ function openExpenseModal() {
       }).join('')
     + `<option value="Generale">Generale (aereo, noleggio, ecc.)</option>`;
   daySel.value = `Giorno ${currentDayId}`;
+
+  const typeChips = document.getElementById('expTypeChips');
+  typeChips.innerHTML = `
+    <span class="chip ${selectedType === 'shared' ? 'selected' : ''}" data-type="shared">🤝 Cassa comune</span>
+    <span class="chip ${selectedType === 'personal' ? 'selected' : ''}" data-type="personal">👤 Spesa personale</span>
+  `;
+  typeChips.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      selectedType = chip.dataset.type;
+      typeChips.querySelectorAll('.chip').forEach(c => c.classList.toggle('selected', c === chip));
+    });
+  });
+
+  const paidBySel = document.getElementById('expPaidBy');
+  paidBySel.innerHTML = participants.map(p => `<option value="${p}">${p}</option>`).join('');
 
   const chipRow = document.getElementById('expCategoryChips');
   chipRow.innerHTML = TRIP_DATA.budget_categories.map(c =>
@@ -411,6 +578,8 @@ document.getElementById('expSave').addEventListener('click', () => {
     category: selectedCategory,
     amount: amount,
     note: document.getElementById('expNote').value.trim(),
+    paidBy: document.getElementById('expPaidBy').value,
+    shared: selectedType === 'shared',
     ts: Date.now(),
   };
   expenses.push(entry);
@@ -421,7 +590,7 @@ document.getElementById('expSave').addEventListener('click', () => {
 
 // ---------------- export / backup ----------------
 document.getElementById('exportBtn').addEventListener('click', () => {
-  const payload = { doneStops, personalNotes, expenses, exportedAt: new Date().toISOString() };
+  const payload = { doneStops, personalNotes, expenses, participants, startTimes, durationOverrides, exportedAt: new Date().toISOString() };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

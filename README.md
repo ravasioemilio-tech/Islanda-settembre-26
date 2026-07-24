@@ -65,6 +65,57 @@ ricalcolano automaticamente, e in alto viene aggiornata anche la **partenza
 mattutina** e l'**arrivo previsto in serata** dell'intera giornata. La
 partenza mattutina di ogni giorno è modificabile liberamente (di default 8:00).
 
+## Foto dei luoghi
+
+Aprendo la descrizione di una tappa, l'app cerca automaticamente una foto su
+**Wikipedia** (fonte con licenza libera, adatta a questo uso) e la mostra in
+alto al testo. Un paio di cose da sapere:
+
+- La prima volta serve connessione internet per scaricare la foto; dopo di
+  che resta salvata nella cache del telefono e si vede anche offline.
+- **Non tutte le tappe hanno una foto**: circa 36 delle 59 con descrizione
+  (le più famose e conosciute) ce l'hanno; per i luoghi molto minori o senza
+  una voce Wikipedia affidabile, l'app mostra solo il testo, senza inventare
+  un'immagine sbagliata.
+- **Consiglio pratico**: prima di partire, mentre sei ancora su wifi/PC, apri
+  ogni scheda giorno e tocca via via tutte le tappe con l'icona ℹ️ — così le
+  foto restano già scaricate in cache e le hai disponibili offline durante il
+  viaggio, senza dover aspettare il caricamento sul posto (dove magari non
+  c'è campo).
+
+## Descrizioni dei luoghi
+
+Toccando il nome di una tappa (evidenziato dall'icona ℹ️) si apre una breve
+descrizione: cosa rende speciale quel luogo, un po' di storia o geologia,
+curiosità. Le ho scritte da zero dopo aver verificato le informazioni su più
+fonti (islandafacile.it, guidetoiceland.is, Wikipedia e altri articoli di
+viaggio) — non sono testi copiati, ma un riassunto originale pensato per
+essere letto in pochi secondi sul posto.
+
+## Cassa comune e saldi tra i partecipanti
+
+Nella scheda **Info** trovi ora "Partecipanti al viaggio": 6 caselle già pronte
+("Persona 1"... "Persona 6") che puoi rinominare con i nomi veri — restano
+salvate sul dispositivo.
+
+Quando registri una spesa, scegli:
+- **🤝 Cassa comune**: viene divisa automaticamente tra tutti e 6 i
+  partecipanti, indipendentemente da chi ha effettivamente pagato
+- **👤 Spesa personale**: resta solo di chi l'ha pagata, non entra nella
+  divisione
+
+Per ogni spesa scegli anche **"Pagato da"** — così l'app sa chi ha anticipato
+i soldi. Nella scheda **Budget** trovi la sezione **"💰 Saldi tra i
+partecipanti"**, che calcola in automatico:
+- quanto ciascuno deve ricevere o dare, sommando tutte le spese di cassa
+  comune fatte da ognuno
+- una lista già semplificata di "chi deve dare quanto a chi" (es. "Marco deve
+  dare 24€ a Giulia"), per chiudere i conti con il minor numero di
+  trasferimenti possibile — non serve fare i calcoli a mano
+
+Le spese personali non influenzano questi saldi: contano solo per il totale
+generale del viaggio.
+
 ## Aggiornare l'app quando aggiorno l'Excel
 
 Da ora in poi, ogni volta che mi chiedi di aggiornare il file Excel del

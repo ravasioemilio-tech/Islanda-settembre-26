@@ -269,6 +269,61 @@ button {
   color: var(--navy);
   line-height: 1.3;
 }
+.stop-info-btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.info-btn {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--teal);
+  background: var(--teal-light);
+  border: 1px solid #bcdbe0;
+  border-radius: 999px;
+  padding: 5px 11px;
+  cursor: pointer;
+}
+.info-btn.active {
+  background: var(--teal);
+  color: #fff;
+  border-color: var(--teal);
+}
+.stop-descrizione {
+  display: none;
+  margin-top: 6px;
+  background: var(--teal-light);
+  border-left: 3px solid var(--teal);
+  border-radius: 8px;
+  padding: 9px 11px;
+}
+.stop-descrizione.open { display: block; }
+.stop-descrizione p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.stop-photo-panel {
+  display: none;
+  margin-top: 6px;
+}
+.stop-photo-panel.open { display: block; }
+.stop-photo-panel img {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
+}
+.stop-photo-loading {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  padding: 14px 0;
+  text-align: center;
+  background: var(--teal-light);
+  border-radius: 10px;
+}
 .stop-sub {
   font-size: 0.78rem;
   color: var(--ink-soft);
@@ -442,6 +497,65 @@ button {
   margin-left: 10px;
   cursor: pointer;
   font-weight: 700;
+}
+
+/* ---------- partecipanti ---------- */
+.participants-box {
+  padding: 4px 16px 6px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.participant-input {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 11px;
+  font-size: 0.88rem;
+  font-family: inherit;
+  background: #fff;
+  color: var(--navy);
+  font-weight: 600;
+}
+
+/* ---------- saldi / cassa comune ---------- */
+.balances-box {
+  margin: 8px 16px;
+}
+.balance-people {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.balance-person {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.88rem;
+}
+.balance-person:last-child { border-bottom: none; }
+.balance-person .bp-name { font-weight: 700; color: var(--navy); }
+.balance-person .bp-val { font-weight: 700; font-size: 0.82rem; }
+.balance-person.credit .bp-val { color: var(--green); }
+.balance-person.debit .bp-val { color: var(--red); }
+.balance-person.even .bp-val { color: var(--ink-soft); }
+
+.settle-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.settle-row {
+  background: var(--gold-light);
+  border: 1px solid #efdca9;
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 0.85rem;
+  color: var(--ink);
 }
 
 .empty-state {
@@ -702,6 +816,8 @@ button {
 
   .section-title { padding: 20px 28px 6px; font-size: 1.15rem; }
   .budget-summary { margin: 8px 28px; max-width: 420px; }
+  .balances-box { margin: 8px 28px; max-width: 640px; }
+  .participants-box { padding: 4px 28px 6px; max-width: 640px; grid-template-columns: repeat(3, 1fr); }
   .expense-list { padding: 0 28px 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); align-items: start; }
   .info-list { padding: 8px 28px 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
   .export-bar { padding: 6px 28px 28px; max-width: 420px; }
