@@ -263,11 +263,34 @@ button {
 
 .stop-main { flex: 1; min-width: 0; }
 
+.stop-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
 .stop-title {
   font-weight: 700;
   font-size: 1rem;
   color: var(--navy);
   line-height: 1.3;
+}
+.stop-title-clickable { cursor: pointer; }
+.stop-detail-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #fff;
+  background: var(--teal);
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(30,130,140,0.35);
 }
 .stop-info-btns {
   display: flex;
@@ -275,6 +298,7 @@ button {
   margin-top: 6px;
 }
 .info-btn {
+  display: inline-block;
   font-size: 0.75rem;
   font-weight: 700;
   color: var(--teal);
@@ -283,6 +307,7 @@ button {
   border-radius: 999px;
   padding: 5px 11px;
   cursor: pointer;
+  margin-top: 6px;
 }
 .info-btn.active {
   background: var(--teal);
@@ -471,6 +496,8 @@ button {
 .budget-summary .row .label { color: var(--ink-soft); }
 .budget-summary .row .value { font-weight: 700; color: var(--navy); }
 .budget-summary .row.total .value { color: var(--teal); font-size: 1.05rem; }
+.budget-summary .row .value.credit { color: var(--green); }
+.budget-summary .row .value.debit { color: var(--red); }
 
 .expense-list {
   padding: 0 16px 12px;
@@ -499,6 +526,68 @@ button {
   font-weight: 700;
 }
 
+/* ---------- carta comune: quote versate ---------- */
+.card-topup-box {
+  margin: 8px 16px 6px;
+}
+.topup-add-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.topup-add-row select {
+  flex: 1.4;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 8px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  background: #fff;
+}
+.topup-add-row input {
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 8px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  background: #fff;
+  min-width: 0;
+}
+.topup-add-row button {
+  flex: 0 0 auto;
+  width: 40px;
+  border: none;
+  border-radius: 10px;
+  background: var(--teal);
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.topup-list {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.topup-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  border-bottom: 1px solid var(--line);
+}
+.topup-row:last-child { border-bottom: none; }
+.topup-row .del { color: var(--red); font-size: 0.7rem; font-weight: 700; cursor: pointer; }
+.topup-total {
+  text-align: right;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  margin-top: 6px;
+}
+
 /* ---------- partecipanti ---------- */
 .participants-box {
   padding: 4px 16px 6px;
@@ -516,6 +605,39 @@ button {
   color: var(--navy);
   font-weight: 600;
 }
+
+/* ---------- riepilogo per persona ---------- */
+.per-person-box {
+  margin: 8px 16px;
+}
+.per-person-list {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.per-person-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.86rem;
+}
+.per-person-row:last-child { border-bottom: none; }
+.pp-name { font-weight: 700; color: var(--navy); flex: 1; }
+.pp-count {
+  font-size: 0.78rem;
+  color: var(--teal);
+  font-weight: 700;
+  background: var(--teal-light);
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+.pp-total { font-weight: 700; color: var(--ink); font-size: 0.8rem; text-align: right; }
+.pp-total small { color: var(--ink-soft); font-weight: 500; }
 
 /* ---------- saldi / cassa comune ---------- */
 .balances-box {
@@ -594,23 +716,23 @@ button {
 .navbtn .ic { font-size: 1.2rem; }
 .navbtn.active { color: var(--teal); }
 
-.fab {
-  position: fixed;
-  right: 16px;
-  bottom: 78px;
-  z-index: 31;
+.mobile-add-bar {
+  margin-top: 10px;
+  display: flex;
+  justify-content: center;
+}
+.mobile-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 800;
   background: var(--gold);
   color: #2b2205;
   border: none;
-  border-radius: 999px;
-  padding: 13px 18px;
-  font-weight: 800;
-  font-size: 0.85rem;
-  box-shadow: 0 4px 14px rgba(201, 162, 75, 0.5);
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
 /* ---------- modal ---------- */
@@ -641,6 +763,172 @@ button {
   color: var(--navy);
   font-size: 1.1rem;
 }
+
+/* ---------- scheda dettagliata di una tappa ---------- */
+.detail-modal {
+  position: relative;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.detail-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 5;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0,0,0,0.45);
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+}
+.detail-photo {
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 40px;
+  background: var(--teal-light);
+  position: relative;
+  z-index: 1;
+}
+.detail-photo img {
+  width: 100%;
+  max-height: 260px;
+  object-fit: cover;
+  display: block;
+}
+.detail-photo-loading {
+  padding: 24px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+.detail-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #fff;
+  position: relative;
+  z-index: 2;
+  padding: 18px 20px 24px;
+}
+.detail-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--teal);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 4px;
+}
+.detail-modal h2 {
+  margin: 0 0 10px;
+  font-size: 1.3rem;
+  line-height: 1.25;
+}
+.detail-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.detail-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.detail-section:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+.detail-section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.detail-section-title-row .detail-section-title { margin-bottom: 0; }
+.detail-edit-toggle {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--teal);
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.detail-desc-empty {
+  font-style: italic;
+  color: var(--ink-soft) !important;
+}
+.detail-desc-edit {
+  display: none;
+  margin-top: 8px;
+  background: var(--teal-light);
+  border: 1px solid #bcdbe0;
+  border-radius: 10px;
+  padding: 10px;
+}
+.detail-desc-edit.open { display: block; }
+.detail-desc-edit textarea {
+  width: 100%;
+  min-height: 140px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-family: inherit;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  resize: vertical;
+  background: #fff;
+  color: var(--ink);
+}
+.detail-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 8px;
+}
+.detail-edit-actions .btn {
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border: none;
+  background: var(--teal);
+  color: #fff;
+  cursor: pointer;
+}
+.detail-reset-link {
+  font-size: 0.75rem;
+  color: var(--red);
+  font-weight: 700;
+  cursor: pointer;
+}
+.detail-section-title {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--navy);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.detail-section p {
+  margin: 0 0 10px;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--ink);
+}
+.detail-section p:last-child { margin-bottom: 0; }
+#detailNoteSection p {
+  color: var(--ink-soft);
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
 .field { margin-bottom: 12px; }
 .field label {
   display: block;
@@ -751,7 +1039,7 @@ button {
 @media (min-width: 640px) {
   body { background: #d7dfe2; }
   #appFrame {
-    max-width: 480px;
+    max-width: 900px;
     margin: 0 auto;
     box-shadow: 0 0 0 1px rgba(20,40,50,0.06), 0 20px 50px rgba(15,40,50,0.22);
   }
@@ -759,11 +1047,36 @@ button {
     left: 50%;
     right: auto;
     transform: translateX(-50%);
-    width: 480px;
+    width: min(900px, 100%);
   }
-  .fab {
-    right: calc(50% - 240px + 16px);
+}
+
+/* ---------- tablet-sized screens (portrait or landscape): use the extra width ---------- */
+@media (min-width: 760px) {
+  .day-meta, .daytimes, .progress-wrap, .section-title,
+  .balances-box, .participants-box, .export-bar, .install-banner {
+    padding-left: 24px;
+    padding-right: 24px;
   }
+  .stops {
+    padding: 4px 24px 24px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    align-items: start;
+    gap: 12px;
+  }
+  .expense-list {
+    padding: 0 24px 24px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    align-items: start;
+  }
+  .info-list {
+    padding: 8px 24px 12px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .topbar { padding: 14px 24px 10px; }
 }
 
 /* ---------- real desktop (mouse pointer, wide window): comfortable full-width view ---------- */
@@ -798,7 +1111,8 @@ button {
   .daytabs { margin-top: 14px; }
   .daytab { font-size: 0.85rem; padding: 8px 18px; }
 
-  .bottomnav, .fab { display: none; }
+  .bottomnav { display: none; }
+  .mobile-add-bar { display: none; }
 
   .day-meta { padding: 22px 28px 6px; }
   .day-meta .title { font-size: 1.6rem; }

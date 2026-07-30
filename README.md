@@ -83,6 +83,27 @@ alto al testo. Un paio di cose da sapere:
   viaggio, senza dover aspettare il caricamento sul posto (dove magari non
   c'è campo).
 
+## Scheda dettagliata di ogni tappa
+
+Ogni tappa ha ora un pulsante ben visibile **"📖 Scheda"** in alto a destra
+(oltre a poter toccare direttamente il titolo). Si apre una scheda a schermo
+intero con foto, badge di priorità/tempi/costi, descrizione completa e le
+note pratiche in sezioni separate.
+
+**Puoi modificare o integrare la descrizione**: dentro la scheda, tocca
+"✏️ Modifica" per aprire un'area di testo precompilata con il testo attuale
+— scrivi pure sopra, aggiungi dettagli, o riscrivila da zero, poi "Salva".
+Le tue modifiche restano salvate sul dispositivo (come le note personali) e
+sostituiscono il testo originale ovunque nell'app. Il link "↺ Ripristina
+originale" torna al testo che ti avevo preparato io, se cambi idea. Funziona
+anche per le tappe che non avevano ancora una descrizione.
+
+**Puoi modificare o integrare anche le note pratiche** allo stesso modo:
+tocca "✏️ Modifica" sopra "📝 Note pratiche" — utile per aggiungere dettagli
+raccolti da chi è già stato in quel posto (strada sterrata, serve il 4x4,
+tratti con guadi importanti, ecc.), con lo stesso salvataggio locale e
+possibilità di ripristino.
+
 ## Descrizioni dei luoghi
 
 Toccando il nome di una tappa (evidenziato dall'icona ℹ️) si apre una breve
@@ -92,29 +113,37 @@ fonti (islandafacile.it, guidetoiceland.is, Wikipedia e altri articoli di
 viaggio) — non sono testi copiati, ma un riassunto originale pensato per
 essere letto in pochi secondi sul posto.
 
-## Cassa comune e saldi tra i partecipanti
+## Cassa comune con carta prepagata e saldi tra i partecipanti
 
-Nella scheda **Info** trovi ora "Partecipanti al viaggio": 6 caselle già pronte
-("Persona 1"... "Persona 6") che puoi rinominare con i nomi veri — restano
-salvate sul dispositivo.
+Nella scheda **Info** trovi "Partecipanti al viaggio" (6 nomi già inseriti,
+modificabili) e una nuova sezione **"💳 Carta comune"** dove registrare le
+quote versate da ciascuno sulla carta prepagata condivisa a inizio viaggio.
 
-Quando registri una spesa, scegli:
-- **🤝 Cassa comune**: viene divisa automaticamente tra tutti e 6 i
-  partecipanti, indipendentemente da chi ha effettivamente pagato
-- **👤 Spesa personale**: resta solo di chi l'ha pagata, non entra nella
-  divisione
+Quando registri una spesa, scegli prima il **tipo**:
+- **🤝 Cassa comune** → poi scegli **come è stata pagata**:
+  - **💳 Carta comune**: normale, la maggior parte dei casi. Scala l'importo
+    dal saldo residuo della carta, non genera nessun debito tra le persone.
+  - **👤 Anticipato da una persona**: da usare solo nei casi eccezionali (la
+    carta non funziona, chi ce l'ha non è presente, ecc.). In questo caso
+    scegli anche chi ha anticipato: quella spesa entra nel calcolo dei saldi.
+- **👤 Spesa personale**: resta solo di chi l'ha pagata, non tocca né la
+  carta né i saldi comuni.
 
-Per ogni spesa scegli anche **"Pagato da"** — così l'app sa chi ha anticipato
-i soldi. Nella scheda **Budget** trovi la sezione **"💰 Saldi tra i
-partecipanti"**, che calcola in automatico:
-- quanto ciascuno deve ricevere o dare, sommando tutte le spese di cassa
-  comune fatte da ognuno
-- una lista già semplificata di "chi deve dare quanto a chi" (es. "Marco deve
-  dare 24€ a Giulia"), per chiudere i conti con il minor numero di
-  trasferimenti possibile — non serve fare i calcoli a mano
+Nella scheda **Budget** trovi ora due sezioni separate:
+- **💳 Carta comune**: quote versate, speso dalla carta, saldo residuo — così
+  sai sempre se e quando la carta va ricaricata
+- **💰 Saldi tra chi ha anticipato di tasca propria**: la lista "chi deve
+  dare quanto a chi", calcolata **solo** sulle spese anticipate di persona
+  (quelle pagate con la carta non generano debiti, perché sono già soldi
+  comuni)
 
-Le spese personali non influenzano questi saldi: contano solo per il totale
-generale del viaggio.
+Nella scheda **Budget** trovi anche **"👤 Riepilogo per persona"**: una riga
+per ciascuno dei 6 partecipanti con il totale delle sue spese personali e un
+contatore 🧾 che conta quante spese ha registrato in tutto (personali +
+quelle di cassa comune anticipate di tasca sua) — utile per un colpo d'occhio
+su chi sta usando di più l'app o chi ha più spese da tenere a mente. Le spese
+pagate con la carta comune non vengono attribuite a nessuno in particolare,
+quindi non alzano il contatore di nessuno.
 
 ## Aggiornare l'app quando aggiorno l'Excel
 
@@ -143,7 +172,7 @@ il telefono veda la nuova versione — te lo ricordo quando arriva il momento.
 - **Giorni**: tappe di ogni giornata con orari, km, priorità (🟢🟡🔴), costi
   parcheggio/ingresso, note di viaggio; checkbox per segnare le tappe fatte;
   campo note personali per ogni tappa (salvato mentre scrivi)
-- **Budget**: tasto "+ Spesa" per registrare al volo una spesa (categoria,
+- **Budget**: tasto "＋ Aggiungi spesa" in alto (sotto le tab dei giorni) per registrare al volo una spesa (categoria,
   importo, giorno, nota), con riepilogo totale e per persona (÷6)
 - **Info**: elenco di tutti i 14 pernottamenti del viaggio
 - **Backup**: pulsante per esportare un file JSON con tutte le spese e note

@@ -28,6 +28,9 @@
     </div>
     <button class="btn primary desktop-add-btn" id="fabAddExpenseDesktop">＋ Aggiungi spesa</button>
   </div>
+  <div class="mobile-add-bar">
+    <button class="mobile-add-btn" id="fabAddExpenseTop">＋ Aggiungi spesa</button>
+  </div>
   <div class="daytabs" id="dayTabs"></div>
 </div>
 
@@ -48,7 +51,11 @@
 <div id="view-budget" style="display:none">
   <div class="section-title">Budget del viaggio</div>
   <div class="budget-summary" id="budgetSummary"></div>
-  <div class="section-title">💰 Saldi tra i partecipanti</div>
+  <div class="section-title">💳 Carta comune</div>
+  <div class="budget-summary" id="cardBalanceBox"></div>
+  <div class="section-title">👤 Riepilogo per persona</div>
+  <div class="per-person-box" id="perPersonBox"></div>
+  <div class="section-title">💰 Saldi tra chi ha anticipato di tasca propria</div>
   <div class="balances-box" id="balancesBox"></div>
   <div class="section-title">Spese registrate</div>
   <div class="expense-list" id="expenseList"></div>
@@ -57,6 +64,8 @@
 <div id="view-info" style="display:none">
   <div class="section-title">Partecipanti al viaggio</div>
   <div class="participants-box" id="participantsBox"></div>
+  <div class="section-title">💳 Carta comune (quote versate)</div>
+  <div class="card-topup-box" id="cardTopupBox"></div>
   <div class="section-title">Pernottamenti</div>
   <div class="info-list" id="pernottamentiList"></div>
   <div class="section-title">Dati e backup</div>
@@ -73,7 +82,6 @@
   <button class="navbtn" data-view="info"><span class="ic">🏠</span>Info</button>
 </div>
 
-<button class="fab" id="fabAddExpense">＋ Spesa</button>
 
 <div class="modal-backdrop" id="expenseModalBackdrop">
   <div class="modal">
@@ -82,8 +90,12 @@
       <label>Tipo spesa</label>
       <div class="chip-row" id="expTypeChips"></div>
     </div>
-    <div class="field">
-      <label>Pagato da</label>
+    <div class="field" id="expSourceField">
+      <label>Pagato con</label>
+      <div class="chip-row" id="expSourceChips"></div>
+    </div>
+    <div class="field" id="expPaidByField">
+      <label id="expPaidByLabel">Pagato da</label>
       <select id="expPaidBy"></select>
     </div>
     <div class="field">
@@ -105,6 +117,46 @@
     <div class="modal-actions">
       <button class="btn ghost" id="expCancel">Annulla</button>
       <button class="btn primary" id="expSave">Salva spesa</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="stopDetailBackdrop">
+  <div class="modal detail-modal">
+    <button class="detail-close" id="detailClose">✕</button>
+    <div class="detail-photo" id="detailPhoto"></div>
+    <div class="detail-body">
+      <div class="detail-eyebrow" id="detailEyebrow"></div>
+      <h2 id="detailTitle"></h2>
+      <div class="detail-badges" id="detailBadges"></div>
+      <div class="detail-section" id="detailDescSection">
+        <div class="detail-section-title-row">
+          <div class="detail-section-title">📖 Descrizione</div>
+          <span class="detail-edit-toggle" id="detailEditToggle">✏️ Modifica</span>
+        </div>
+        <div id="detailDesc"></div>
+        <div class="detail-desc-edit" id="detailDescEdit">
+          <textarea id="detailDescTextarea" placeholder="Scrivi o integra la descrizione..."></textarea>
+          <div class="detail-edit-actions">
+            <button class="btn primary" id="detailDescSave">Salva</button>
+            <span class="detail-reset-link" id="detailDescReset">↺ Ripristina originale</span>
+          </div>
+        </div>
+      </div>
+      <div class="detail-section" id="detailNoteSection">
+        <div class="detail-section-title-row">
+          <div class="detail-section-title">📝 Note pratiche</div>
+          <span class="detail-edit-toggle" id="detailNoteEditToggle">✏️ Modifica</span>
+        </div>
+        <p id="detailNote"></p>
+        <div class="detail-desc-edit" id="detailNoteEdit">
+          <textarea id="detailNoteTextarea" placeholder="Es. strada sterrata, consigliato 4x4, tratti con guadi..."></textarea>
+          <div class="detail-edit-actions">
+            <button class="btn primary" id="detailNoteSave">Salva</button>
+            <span class="detail-reset-link" id="detailNoteReset">↺ Ripristina originale</span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
