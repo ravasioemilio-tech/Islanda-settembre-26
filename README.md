@@ -140,6 +140,18 @@ decidere il programma definitivo, nella scheda **Info** trovi ora
 Il pulsante "↺ Cancella tutte" nella sezione 2 rimuove tutte le risposte
 caricate, se vuoi ricominciare il confronto da capo.
 
+## Modificare la foto di una tappa
+
+Dentro la scheda dettagliata, sopra la foto trovi ora **"📷 Foto"** con
+"✏️ Modifica": puoi incollare **un link diretto a un'immagine** (es. presa
+da Google Immagini, tasto destro → "Copia indirizzo immagine"), oppure
+scrivere **il nome di una voce Wikipedia diversa** se quella scelta
+automaticamente non è quella giusta (è già successo con una chiesa che
+aveva lo stesso nome di un'altra più famosa in un'altra zona d'Islanda —
+in quel caso basta specificare meglio, es. "Saurbæjarkirkja Rauðasandur").
+Come per gli altri campi, resta salvata sul dispositivo con possibilità di
+ripristino.
+
 ## Modificare la priorità di una tappa
 
 Dentro la scheda dettagliata trovi ora anche **"🎯 Priorità"**: tre chip

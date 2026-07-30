@@ -999,6 +999,16 @@ button {
   background: #fff;
   color: var(--ink);
 }
+.detail-desc-edit input[type="text"] {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  background: #fff;
+  color: var(--ink);
+}
 .detail-edit-actions {
   display: flex;
   align-items: center;

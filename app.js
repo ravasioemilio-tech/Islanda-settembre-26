@@ -18,6 +18,7 @@ const STORE_KEYS = {
   collectedPriorities: 'iceland_collected_priorities_v1',
   suggestions: 'iceland_suggestions_v1',
   collectedSuggestions: 'iceland_collected_suggestions_v1',
+  photoOverrides: 'iceland_photo_overrides_v1',
 };
 
 function loadStore(key, fallback) {
@@ -59,6 +60,13 @@ let priorityOverrides = loadStore(STORE_KEYS.priorityOverrides, {}); // { "1_0":
 let collectedPriorities = loadStore(STORE_KEYS.collectedPriorities, {}); // { "Marco": {"1_0":"Imperdibile",...}, ... }
 let suggestions = loadStore(STORE_KEYS.suggestions, []); // [{id, text, ts}]
 let collectedSuggestions = loadStore(STORE_KEYS.collectedSuggestions, {}); // { "Marco": [{text, ts}, ...], ... }
+let photoOverrides = loadStore(STORE_KEYS.photoOverrides, {}); // { "1_0": "https://..." oppure "Titolo Wikipedia" }
+function getEffectivePhotoSource(dayId, idx, s) {
+  const key = stopKey(dayId, idx);
+  return Object.prototype.hasOwnProperty.call(photoOverrides, key)
+    ? photoOverrides[key]
+    : (s.wiki || '');
+}
 function getEffectivePriority(dayId, idx, s) {
   const key = stopKey(dayId, idx);
   return Object.prototype.hasOwnProperty.call(priorityOverrides, key)
@@ -280,25 +288,71 @@ async function openStopDetailModal(day, idx) {
   document.getElementById('detailNoteReset').style.display =
     Object.prototype.hasOwnProperty.call(noteOverrides, noteKeyD) ? '' : 'none';
 
-  if (s.wiki) {
-    photoBox.style.display = '';
-    photoBox.innerHTML = `<div class="detail-photo-loading">📷 carico foto…</div>`;
-    getWikiImage(s.wiki).then(src => {
-      if (src) {
-        photoBox.innerHTML = `<img src="${src}" alt="${s.a}" loading="lazy">`;
-      } else {
-        photoBox.innerHTML = '';
-        photoBox.style.display = 'none';
-      }
-    });
-  } else {
-    photoBox.style.display = 'none';
-    photoBox.innerHTML = '';
-  }
+  loadDetailPhoto(day, idx, s);
+  document.getElementById('detailPhotoEdit').classList.remove('open');
+  const photoKeyD = stopKey(day.id, idx);
+  document.getElementById('detailPhotoReset').style.display =
+    Object.prototype.hasOwnProperty.call(photoOverrides, photoKeyD) ? '' : 'none';
+  document.getElementById('detailPhotoInput').value = getEffectivePhotoSource(day.id, idx, s);
 
   backdrop.classList.add('open');
   lockBodyScroll();
 }
+
+function loadDetailPhoto(day, idx, s) {
+  const photoBox = document.getElementById('detailPhoto');
+  const source = getEffectivePhotoSource(day.id, idx, s);
+  if (!source) {
+    photoBox.style.display = 'none';
+    photoBox.innerHTML = '';
+    return;
+  }
+  photoBox.style.display = '';
+  photoBox.innerHTML = `<div class="detail-photo-loading">📷 carico foto…</div>`;
+  if (/^https?:\/\//i.test(source)) {
+    // link diretto a un'immagine, inserito dall'utente
+    const img = new Image();
+    img.onload = () => { photoBox.innerHTML = `<img src="${source}" alt="${s.a}" loading="lazy">`; };
+    img.onerror = () => { photoBox.innerHTML = `<div class="detail-photo-loading">📷 impossibile caricare questo link</div>`; };
+    img.src = source;
+  } else {
+    // titolo di una voce Wikipedia
+    getWikiImage(source).then(src => {
+      if (src) {
+        photoBox.innerHTML = `<img src="${src}" alt="${s.a}" loading="lazy">`;
+      } else {
+        photoBox.innerHTML = `<div class="detail-photo-loading">📷 nessuna foto trovata per questa voce</div>`;
+      }
+    });
+  }
+}
+
+document.getElementById('detailPhotoEditToggle').addEventListener('click', () => {
+  document.getElementById('detailPhotoEdit').classList.toggle('open');
+});
+
+document.getElementById('detailPhotoSave').addEventListener('click', () => {
+  if (!currentDetailDay || currentDetailIdx === null) return;
+  const key = stopKey(currentDetailDay.id, currentDetailIdx);
+  const val = document.getElementById('detailPhotoInput').value.trim();
+  photoOverrides[key] = val;
+  saveStore(STORE_KEYS.photoOverrides, photoOverrides);
+  const s = currentDetailDay.stops[currentDetailIdx];
+  loadDetailPhoto(currentDetailDay, currentDetailIdx, s);
+  document.getElementById('detailPhotoEdit').classList.remove('open');
+  document.getElementById('detailPhotoReset').style.display = '';
+});
+
+document.getElementById('detailPhotoReset').addEventListener('click', () => {
+  if (!currentDetailDay || currentDetailIdx === null) return;
+  const key = stopKey(currentDetailDay.id, currentDetailIdx);
+  delete photoOverrides[key];
+  saveStore(STORE_KEYS.photoOverrides, photoOverrides);
+  const s = currentDetailDay.stops[currentDetailIdx];
+  loadDetailPhoto(currentDetailDay, currentDetailIdx, s);
+  document.getElementById('detailPhotoInput').value = getEffectivePhotoSource(currentDetailDay.id, currentDetailIdx, s);
+  document.getElementById('detailPhotoReset').style.display = 'none';
+});
 
 function renderDetailDescription(day, idx, s) {
   const descEl = document.getElementById('detailDesc');
@@ -1186,7 +1240,7 @@ document.getElementById('expSave').addEventListener('click', () => {
 
 // ---------------- export / backup ----------------
 document.getElementById('exportBtn').addEventListener('click', () => {
-  const payload = { doneStops, personalNotes, expenses, participants, startTimes, durationOverrides, cardTopups, descriptionOverrides, noteOverrides, priorityOverrides, suggestions, exportedAt: new Date().toISOString() };
+  const payload = { doneStops, personalNotes, expenses, participants, startTimes, durationOverrides, cardTopups, descriptionOverrides, noteOverrides, priorityOverrides, suggestions, photoOverrides, exportedAt: new Date().toISOString() };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
