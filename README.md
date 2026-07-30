@@ -143,14 +143,27 @@ caricate, se vuoi ricominciare il confronto da capo.
 ## Modificare la foto di una tappa
 
 Dentro la scheda dettagliata, sopra la foto trovi ora **"📷 Foto"** con
-"✏️ Modifica": puoi incollare **un link diretto a un'immagine** (es. presa
-da Google Immagini, tasto destro → "Copia indirizzo immagine"), oppure
-scrivere **il nome di una voce Wikipedia diversa** se quella scelta
-automaticamente non è quella giusta (è già successo con una chiesa che
-aveva lo stesso nome di un'altra più famosa in un'altra zona d'Islanda —
-in quel caso basta specificare meglio, es. "Saurbæjarkirkja Rauðasandur").
-Come per gli altri campi, resta salvata sul dispositivo con possibilità di
-ripristino.
+"✏️ Modifica". Tre modi per cambiarla:
+
+1. **Link diretto a un'immagine**: trovi una foto online, tasto destro →
+   "Copia indirizzo immagine" → incolla nel campo → Salva
+2. **Nome di una voce Wikipedia diversa**: se la foto automatica è sbagliata
+   (es. una chiesa che condivide il nome con un'altra più famosa in
+   un'altra zona d'Islanda), scrivi il titolo giusto
+3. **📁 Carica una foto dal tuo dispositivo**: se hai già uno scatto tuo sul
+   telefono/PC, usa il pulsante di caricamento file sotto il campo di
+   testo — l'app la ridimensiona e comprime automaticamente prima di
+   salvarla, per non riempire lo spazio del dispositivo
+
+Come per gli altri campi, resta salvata sul dispositivo con "↺ Ripristina
+originale" per tornare indietro.
+
+**Nota sullo spazio disponibile**: le foto caricate dal dispositivo restano
+salvate localmente nel browser (non su un server), quindi occupano un po'
+di spazio ogni volta — l'app comprime automaticamente per limitarlo, ma se
+carichi tantissime foto proprie potresti in teoria esaurire lo spazio
+riservato dal browser al sito. Se succede, l'app te lo segnala con un
+messaggio invece di fallire silenziosamente.
 
 ## Modificare la priorità di una tappa
 

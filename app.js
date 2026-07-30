@@ -30,7 +30,13 @@ function loadStore(key, fallback) {
   }
 }
 function saveStore(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (e) {
+    console.error('Storage error', e);
+    return false;
+  }
 }
 
 let doneStops = loadStore(STORE_KEYS.done, {});
@@ -293,7 +299,15 @@ async function openStopDetailModal(day, idx) {
   const photoKeyD = stopKey(day.id, idx);
   document.getElementById('detailPhotoReset').style.display =
     Object.prototype.hasOwnProperty.call(photoOverrides, photoKeyD) ? '' : 'none';
-  document.getElementById('detailPhotoInput').value = getEffectivePhotoSource(day.id, idx, s);
+  const currentPhotoSrc = getEffectivePhotoSource(day.id, idx, s);
+  const photoInputEl = document.getElementById('detailPhotoInput');
+  if (currentPhotoSrc.startsWith('data:')) {
+    photoInputEl.value = '';
+    photoInputEl.placeholder = '📁 È caricata una foto dal dispositivo — scrivi qui per sostituirla con un link o un titolo Wikipedia';
+  } else {
+    photoInputEl.value = currentPhotoSrc;
+    photoInputEl.placeholder = "Incolla un link diretto a un'immagine, oppure scrivi il nome di una voce Wikipedia (es. Gullfoss)";
+  }
 
   backdrop.classList.add('open');
   lockBodyScroll();
@@ -309,8 +323,8 @@ function loadDetailPhoto(day, idx, s) {
   }
   photoBox.style.display = '';
   photoBox.innerHTML = `<div class="detail-photo-loading">📷 carico foto…</div>`;
-  if (/^https?:\/\//i.test(source)) {
-    // link diretto a un'immagine, inserito dall'utente
+  if (/^(https?:|data:)/i.test(source)) {
+    // link diretto a un'immagine, o foto caricata dal dispositivo (data URL)
     const img = new Image();
     img.onload = () => { photoBox.innerHTML = `<img src="${source}" alt="${s.a}" loading="lazy">`; };
     img.onerror = () => { photoBox.innerHTML = `<div class="detail-photo-loading">📷 impossibile caricare questo link</div>`; };
@@ -329,6 +343,48 @@ function loadDetailPhoto(day, idx, s) {
 
 document.getElementById('detailPhotoEditToggle').addEventListener('click', () => {
   document.getElementById('detailPhotoEdit').classList.toggle('open');
+});
+
+document.getElementById('detailPhotoFile').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file || !currentDetailDay || currentDetailIdx === null) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      // ridimensiona/comprimi lato client per non riempire lo spazio del dispositivo
+      const maxDim = 1280;
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        const scale = maxDim / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.78);
+
+      const key = stopKey(currentDetailDay.id, currentDetailIdx);
+      photoOverrides[key] = dataUrl;
+      const ok = saveStore(STORE_KEYS.photoOverrides, photoOverrides);
+      if (!ok) {
+        delete photoOverrides[key];
+        alert('Spazio di archiviazione del dispositivo esaurito: non riesco a salvare altre foto. Prova a eliminarne qualcuna già caricata (Ripristina originale su altre tappe) e riprova.');
+        return;
+      }
+      const s = currentDetailDay.stops[currentDetailIdx];
+      loadDetailPhoto(currentDetailDay, currentDetailIdx, s);
+      document.getElementById('detailPhotoReset').style.display = '';
+      document.getElementById('detailPhotoInput').value = '';
+      document.getElementById('detailPhotoInput').placeholder = '📁 È caricata una foto dal dispositivo — scrivi qui per sostituirla con un link o un titolo Wikipedia';
+      document.getElementById('detailPhotoEdit').classList.remove('open');
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
 });
 
 document.getElementById('detailPhotoSave').addEventListener('click', () => {
