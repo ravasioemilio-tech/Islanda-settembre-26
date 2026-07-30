@@ -14,6 +14,10 @@ const STORE_KEYS = {
   cardTopups: 'iceland_card_topups_v1',
   descriptionOverrides: 'iceland_description_overrides_v1',
   noteOverrides: 'iceland_note_overrides_v1',
+  priorityOverrides: 'iceland_priority_overrides_v1',
+  collectedPriorities: 'iceland_collected_priorities_v1',
+  suggestions: 'iceland_suggestions_v1',
+  collectedSuggestions: 'iceland_collected_suggestions_v1',
 };
 
 function loadStore(key, fallback) {
@@ -50,6 +54,16 @@ function getEffectiveNote(dayId, idx, s) {
   return Object.prototype.hasOwnProperty.call(noteOverrides, key)
     ? noteOverrides[key]
     : (s.note || '');
+}
+let priorityOverrides = loadStore(STORE_KEYS.priorityOverrides, {}); // { "1_0": "Imperdibile", ... }
+let collectedPriorities = loadStore(STORE_KEYS.collectedPriorities, {}); // { "Marco": {"1_0":"Imperdibile",...}, ... }
+let suggestions = loadStore(STORE_KEYS.suggestions, []); // [{id, text, ts}]
+let collectedSuggestions = loadStore(STORE_KEYS.collectedSuggestions, {}); // { "Marco": [{text, ts}, ...], ... }
+function getEffectivePriority(dayId, idx, s) {
+  const key = stopKey(dayId, idx);
+  return Object.prototype.hasOwnProperty.call(priorityOverrides, key)
+    ? priorityOverrides[key]
+    : (s.priorita || null);
 }
 
 const DEFAULT_START_TIME = '08:00';
@@ -241,9 +255,8 @@ async function openStopDetailModal(day, idx) {
   eyebrow.textContent = `Tappa ${idx + 1} · ${day.label || 'Giorno ' + day.id} · da ${s.da || ''}`;
   titleEl.textContent = s.a || '';
 
-  const pri = priorityInfo(s.priorita);
+  const effPriority = getEffectivePriority(day.id, idx, s);
   let badges = '';
-  if (pri) badges += `<span class="badge ${pri.cls}">${pri.label}</span>`;
   if (guidaMin > 0) badges += `<span class="badge time">🚗 ${formatDurationMin(guidaMin)}${s.km ? ' · ' + s.km + ' km' : ''}</span>`;
   if (visitaMin > 0) badges += `<span class="badge time">⏱ ${formatDurationMin(visitaMin)}</span>`;
   if (s.parcheggio !== null && s.parcheggio !== undefined) {
@@ -253,6 +266,8 @@ async function openStopDetailModal(day, idx) {
     badges += `<span class="badge cost">🎟 ${fmtEuro(s.ingresso)}</span>`;
   }
   badgesBox.innerHTML = badges;
+
+  renderPriorityChips(day, idx, s, effPriority);
 
   renderDetailDescription(day, idx, s);
   editBox.classList.remove('open');
@@ -309,6 +324,30 @@ function renderDetailNote(day, idx, s) {
     noteEl.classList.add('detail-desc-empty');
   }
   textarea.value = effective;
+}
+
+const PRIORITY_OPTIONS = ['Imperdibile', 'Facoltativa', 'Da evitare'];
+
+function renderPriorityChips(day, idx, s, current) {
+  const box = document.getElementById('detailPriorityChips');
+  box.innerHTML = PRIORITY_OPTIONS.map(p => {
+    const info = priorityInfo(p);
+    return `<span class="chip pri-chip ${p === current ? 'selected' : ''}" data-pri="${p}">${info.label}</span>`;
+  }).join('');
+  box.querySelectorAll('.pri-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const newPri = chip.dataset.pri;
+      const key = stopKey(day.id, idx);
+      if (newPri === s.priorita) {
+        delete priorityOverrides[key]; // torna al valore originale, non serve un override
+      } else {
+        priorityOverrides[key] = newPri;
+      }
+      saveStore(STORE_KEYS.priorityOverrides, priorityOverrides);
+      renderPriorityChips(day, idx, s, newPri);
+      renderDayView(); // aggiorna il badge nella lista delle tappe
+    });
+  });
 }
 
 document.getElementById('detailEditToggle').addEventListener('click', () => {
@@ -450,7 +489,7 @@ function renderDayView() {
     const noteKey = stopKey(day.id, idx);
     const { partenza, arrivo, guidaMin, visitaMin } = chain[idx];
 
-    const pri = priorityInfo(s.priorita);
+    const pri = priorityInfo(getEffectivePriority(day.id, idx, s));
     let badges = '';
     if (pri) badges += `<span class="badge ${pri.cls}">${pri.label}</span>`;
     if (guidaMin > 0) badges += `<span class="badge time">🚗 ${formatDurationMin(guidaMin)}${s.km ? ' · ' + s.km + ' km' : ''}</span>`;
@@ -750,9 +789,250 @@ function renderCardTopups() {
   });
 }
 
+// ---------------- raccolta priorità di gruppo (export/import/confronto) ----------------
+function getStopLabelByKey(key) {
+  const us = key.indexOf('_');
+  const dayId = parseInt(key.slice(0, us), 10);
+  const idx = parseInt(key.slice(us + 1), 10);
+  const day = TRIP_DATA.days.find(d => d.id === dayId);
+  if (!day || !day.stops[idx]) return key;
+  const dayLabel = day.label || `Giorno ${day.id}`;
+  return { dayLabel, dayOrder: dayId, stopName: day.stops[idx].a || key };
+}
+
+function renderPriorityCollector() {
+  const box = document.getElementById('priorityCollectBox');
+  const myCount = Object.keys(priorityOverrides).length;
+  const collectedNames = Object.keys(collectedPriorities);
+
+  let html = `
+    <div class="pc-block">
+      <div class="pc-block-title">1. Esporta le tue scelte</div>
+      <div class="pc-row">
+        <select id="pcExportPerson">${participants.map(p => `<option value="${p}">${p}</option>`).join('')}</select>
+        <button class="btn primary" id="pcExportBtn">⬇️ Esporta</button>
+      </div>
+      <div class="pc-hint">${myCount} modifiche di priorità su questo dispositivo. Scegli il tuo nome e scarica il file, poi mandalo a chi raccoglie le risposte (es. via WhatsApp).</div>
+    </div>
+    <div class="pc-block">
+      <div class="pc-block-title">2. Carica un file ricevuto</div>
+      <div class="pc-row">
+        <input type="file" id="pcImportFile" accept="application/json">
+      </div>
+      <div class="pc-hint">Persone già caricate: ${collectedNames.length ? collectedNames.join(', ') : 'nessuna ancora'}.
+      ${collectedNames.length ? `<span class="detail-reset-link" id="pcClearAll">↺ Cancella tutte</span>` : ''}</div>
+    </div>
+  `;
+
+  if (collectedNames.length > 0) {
+    // costruisci l'elenco di tutte le tappe con almeno una scelta raccolta
+    const stopKeys = new Set();
+    collectedNames.forEach(name => {
+      Object.keys(collectedPriorities[name] || {}).forEach(k => stopKeys.add(k));
+    });
+    const rows = Array.from(stopKeys).map(k => ({ key: k, ...getStopLabelByKey(k) }))
+      .sort((a, b) => (a.dayOrder - b.dayOrder) || (a.key > b.key ? 1 : -1));
+
+    html += `<div class="pc-block"><div class="pc-block-title">3. Confronto tappa per tappa</div>`;
+    if (rows.length === 0) {
+      html += `<div class="pc-hint">Nessuna scelta ancora caricata.</div>`;
+    } else {
+      let lastDay = null;
+      rows.forEach(r => {
+        if (r.dayLabel !== lastDay) {
+          html += `<div class="pc-day-heading">${r.dayLabel}</div>`;
+          lastDay = r.dayLabel;
+        }
+        html += `<div class="pc-stop-row"><div class="pc-stop-name">${r.stopName}</div><div class="pc-choices">`;
+        collectedNames.forEach(name => {
+          const p = collectedPriorities[name][r.key];
+          if (!p) return;
+          const info = priorityInfo(p);
+          html += `<span class="pc-choice-chip pri-chip ${info ? info.cls.replace('pri-', 'pc-') : ''}" data-key="${r.key}" data-pri="${p}" title="Applica ${info ? info.label : p}">${name}: ${info ? info.label : p}</span>`;
+        });
+        html += `</div></div>`;
+      });
+    }
+    html += `</div>`;
+  }
+
+  box.innerHTML = html;
+
+  document.getElementById('pcExportBtn').addEventListener('click', () => {
+    const person = document.getElementById('pcExportPerson').value;
+    const payload = { person, priorityOverrides, exportedAt: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `islanda-priorita-${person.replace(/\s+/g, '_')}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  document.getElementById('pcImportFile').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        const person = data.person || `Persona ${Date.now()}`;
+        collectedPriorities[person] = data.priorityOverrides || {};
+        saveStore(STORE_KEYS.collectedPriorities, collectedPriorities);
+        renderPriorityCollector();
+      } catch (err) {
+        alert('File non valido: assicurati di aver caricato il file .json esportato dall\'app.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  });
+
+  const clearBtn = document.getElementById('pcClearAll');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      collectedPriorities = {};
+      saveStore(STORE_KEYS.collectedPriorities, collectedPriorities);
+      renderPriorityCollector();
+    });
+  }
+
+  box.querySelectorAll('.pc-choice-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const key = chip.dataset.key;
+      const pri = chip.dataset.pri;
+      priorityOverrides[key] = pri;
+      saveStore(STORE_KEYS.priorityOverrides, priorityOverrides);
+      renderPriorityCollector();
+    });
+  });
+}
+
+// ---------------- suggerimenti di località non ancora inserite ----------------
+function renderSuggestions() {
+  const box = document.getElementById('suggestionsBox');
+  const collectedNames = Object.keys(collectedSuggestions);
+
+  let html = `
+    <div class="pc-block">
+      <div class="pc-block-title">Aggiungi una tua proposta</div>
+      <div class="pc-row">
+        <input type="text" id="sugText" placeholder="Es. nome del posto + perché ti interessa">
+        <button class="btn primary" id="sugAddBtn">＋ Aggiungi</button>
+      </div>
+    </div>
+  `;
+
+  if (suggestions.length > 0) {
+    html += `<div class="pc-block"><div class="pc-block-title">Le tue proposte (su questo dispositivo)</div><div class="sug-list">`;
+    suggestions.forEach(s => {
+      html += `<div class="sug-item"><span>${s.text}</span><span class="detail-reset-link sug-del" data-id="${s.id}">Elimina</span></div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  html += `
+    <div class="pc-block">
+      <div class="pc-block-title">Esporta e condividi</div>
+      <div class="pc-row">
+        <select id="sugExportPerson">${participants.map(p => `<option value="${p}">${p}</option>`).join('')}</select>
+        <button class="btn primary" id="sugExportBtn">⬇️ Esporta</button>
+      </div>
+      <div class="pc-hint">Scegli il tuo nome e scarica il file con le tue proposte, poi mandalo a chi raccoglie i suggerimenti (es. via WhatsApp).</div>
+    </div>
+    <div class="pc-block">
+      <div class="pc-block-title">Carica un file ricevuto</div>
+      <div class="pc-row">
+        <input type="file" id="sugImportFile" accept="application/json">
+      </div>
+      <div class="pc-hint">Persone già caricate: ${collectedNames.length ? collectedNames.join(', ') : 'nessuna ancora'}.
+      ${collectedNames.length ? `<span class="detail-reset-link" id="sugClearAll">↺ Cancella tutte</span>` : ''}</div>
+    </div>
+  `;
+
+  if (collectedNames.length > 0) {
+    html += `<div class="pc-block"><div class="pc-block-title">Tutte le proposte raccolte</div>`;
+    collectedNames.forEach(name => {
+      const list = collectedSuggestions[name] || [];
+      if (list.length === 0) return;
+      html += `<div class="pc-day-heading">${name}</div>`;
+      list.forEach(item => {
+        html += `<div class="pc-stop-row"><div class="pc-stop-name">${item.text}</div></div>`;
+      });
+    });
+    html += `</div>`;
+  }
+
+  box.innerHTML = html;
+
+  document.getElementById('sugAddBtn').addEventListener('click', () => {
+    const input = document.getElementById('sugText');
+    const val = input.value.trim();
+    if (!val) return;
+    suggestions.push({ id: 's' + Date.now() + Math.random().toString(36).slice(2, 7), text: val, ts: Date.now() });
+    saveStore(STORE_KEYS.suggestions, suggestions);
+    renderSuggestions();
+  });
+
+  box.querySelectorAll('.sug-del').forEach(el => {
+    el.addEventListener('click', () => {
+      suggestions = suggestions.filter(s => s.id !== el.dataset.id);
+      saveStore(STORE_KEYS.suggestions, suggestions);
+      renderSuggestions();
+    });
+  });
+
+  document.getElementById('sugExportBtn').addEventListener('click', () => {
+    const person = document.getElementById('sugExportPerson').value;
+    const payload = { person, suggestions: suggestions.map(s => ({ text: s.text, ts: s.ts })), exportedAt: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `islanda-suggerimenti-${person.replace(/\s+/g, '_')}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  document.getElementById('sugImportFile').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        const person = data.person || `Persona ${Date.now()}`;
+        collectedSuggestions[person] = data.suggestions || [];
+        saveStore(STORE_KEYS.collectedSuggestions, collectedSuggestions);
+        renderSuggestions();
+      } catch (err) {
+        alert('File non valido: assicurati di aver caricato il file .json esportato dall\'app.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  });
+
+  const clearBtn = document.getElementById('sugClearAll');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      collectedSuggestions = {};
+      saveStore(STORE_KEYS.collectedSuggestions, collectedSuggestions);
+      renderSuggestions();
+    });
+  }
+}
+
 function renderInfo() {
   renderParticipants();
   renderCardTopups();
+  renderPriorityCollector();
+  renderSuggestions();
   const list = document.getElementById('pernottamentiList');
   list.innerHTML = '';
   TRIP_DATA.pernottamenti.forEach(p => {
@@ -906,7 +1186,7 @@ document.getElementById('expSave').addEventListener('click', () => {
 
 // ---------------- export / backup ----------------
 document.getElementById('exportBtn').addEventListener('click', () => {
-  const payload = { doneStops, personalNotes, expenses, participants, startTimes, durationOverrides, cardTopups, descriptionOverrides, exportedAt: new Date().toISOString() };
+  const payload = { doneStops, personalNotes, expenses, participants, startTimes, durationOverrides, cardTopups, descriptionOverrides, noteOverrides, priorityOverrides, suggestions, exportedAt: new Date().toISOString() };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

@@ -104,6 +104,53 @@ raccolti da chi è già stato in quel posto (strada sterrata, serve il 4x4,
 tratti con guadi importanti, ecc.), con lo stesso salvataggio locale e
 possibilità di ripristino.
 
+## Suggerire una località non ancora inserita
+
+Nella scheda **Info**, sezione **"💡 Suggerisci una località"**: chiunque
+può scrivere una proposta libera (nome del posto e perché interessa) e
+salvarla sul proprio dispositivo. Stesso identico meccanismo delle
+priorità: si sceglie il proprio nome, si esporta un file
+`islanda-suggerimenti-NOME.json`, lo si manda a chi raccoglie le proposte —
+che carica ogni file ricevuto e vede l'elenco completo di tutti i
+suggerimenti, persona per persona, per valutare come integrarli nel
+viaggio.
+
+## Raccogliere le priorità di tutti i 6 partecipanti
+
+Ogni persona modifica la priorità delle tappe sul proprio telefono (come
+spiegato sopra) — resta lì, sul suo dispositivo. Per raccoglierle tutte e
+decidere il programma definitivo, nella scheda **Info** trovi ora
+**"📊 Raccogliere le priorità di tutti"**, in tre passi:
+
+1. **Ognuno esporta le proprie scelte**: sceglie il proprio nome da un menu
+   a tendina e tocca "⬇️ Esporta" — si scarica un piccolo file
+   `islanda-priorita-NOME.json`. Lo manda a chi raccoglie le risposte
+   (tipicamente tu) via WhatsApp, email, come preferite.
+2. **Tu carichi ogni file ricevuto**: tocchi "Carica un file ricevuto",
+   selezioni il file .json ricevuto — l'app lo legge e lo aggiunge al
+   confronto (puoi caricarne quanti ne vuoi, uno alla volta).
+3. **Confronto tappa per tappa**: appare un elenco di tutte le tappe su cui
+   qualcuno ha espresso una preferenza diversa da quella di base, con un
+   chip colorato per ogni persona (es. "Marco: 🟢 Imperdibile",
+   "Giusi: 🔴 Da evitare"). **Toccando il chip di una persona applichi
+   subito quella scelta alle tue proprie tappe** — così decidi tu, tappa
+   per tappa, guardando cosa hanno scelto gli altri, e il programma
+   definitivo si costruisce direttamente sul tuo dispositivo.
+
+Il pulsante "↺ Cancella tutte" nella sezione 2 rimuove tutte le risposte
+caricate, se vuoi ricominciare il confronto da capo.
+
+## Modificare la priorità di una tappa
+
+Dentro la scheda dettagliata trovi ora anche **"🎯 Priorità"**: tre chip
+(🟢 Imperdibile, 🟡 Facoltativa, 🔴 Da evitare) — tocca quella che vuoi per
+cambiarla all'istante, senza bisogno di un tasto "Salva" a parte. Utile per
+quando i tuoi 5 compagni di viaggio ti diranno cosa vogliono vedere e cosa
+no: aggiorni la priorità direttamente nell'app invece di dover rifare
+l'Excel. Come per descrizione e note, resta salvata sul dispositivo — se
+tocchi di nuovo la priorità originale, torna semplicemente quella di
+partenza senza lasciare alcuna modifica residua.
+
 ## Descrizioni dei luoghi
 
 Toccando il nome di una tappa (evidenziato dall'icona ℹ️) si apre una breve

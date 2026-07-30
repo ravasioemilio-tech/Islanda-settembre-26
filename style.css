@@ -527,6 +527,119 @@ button {
 }
 
 /* ---------- carta comune: quote versate ---------- */
+/* ---------- raccolta priorità di gruppo ---------- */
+.suggestions-box {
+  margin: 8px 16px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sug-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sug-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  background: var(--teal-light);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.84rem;
+  color: var(--ink);
+}
+.sug-item span:first-child { flex: 1; }
+
+.priority-collect-box {
+  margin: 8px 16px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pc-block {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 12px 14px;
+}
+.pc-block-title {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--navy);
+  margin-bottom: 8px;
+}
+.pc-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.pc-row select, .pc-row input[type="file"] {
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 9px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  background: #fbfbf7;
+  min-width: 0;
+}
+.pc-row .btn {
+  flex: 0 0 auto;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: none;
+  background: var(--teal);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.pc-hint {
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+  margin-top: 8px;
+  line-height: 1.4;
+}
+.pc-day-heading {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--teal);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin: 12px 0 6px;
+}
+.pc-day-heading:first-child { margin-top: 0; }
+.pc-stop-row {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.pc-stop-row:last-child { border-bottom: none; }
+.pc-stop-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 6px;
+}
+.pc-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pc-choice-chip {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.pc-choice-chip.pc-imperdibile { background: var(--green-bg); color: var(--green); border-color: var(--green); }
+.pc-choice-chip.pc-facoltativa { background: var(--amber-bg); color: var(--amber); border-color: var(--amber); }
+.pc-choice-chip.pc-evitare { background: var(--red-bg); color: var(--red); border-color: var(--red); }
+
 .card-topup-box {
   margin: 8px 16px 6px;
 }
@@ -966,6 +1079,9 @@ button {
   color: #fff;
   border-color: var(--navy);
 }
+.pri-chip[data-pri="Imperdibile"].selected { background: var(--green); border-color: var(--green); color: #fff; }
+.pri-chip[data-pri="Facoltativa"].selected { background: var(--amber); border-color: var(--amber); color: #2b2205; }
+.pri-chip[data-pri="Da evitare"].selected { background: var(--red); border-color: var(--red); color: #fff; }
 .modal-actions {
   display: flex;
   gap: 10px;
