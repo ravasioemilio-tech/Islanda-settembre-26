@@ -19,6 +19,12 @@ const STORE_KEYS = {
   suggestions: 'iceland_suggestions_v1',
   collectedSuggestions: 'iceland_collected_suggestions_v1',
   photoOverrides: 'iceland_photo_overrides_v1',
+  mapsOverrides: 'iceland_maps_overrides_v1',
+  hiddenStops: 'iceland_hidden_stops_v1',
+  customStops: 'iceland_custom_stops_v1',
+  pernottamentoPhoto: 'iceland_pernottamento_photo_v1',
+  pernottamentoNote: 'iceland_pernottamento_note_v1',
+  pernottamentoFields: 'iceland_pernottamento_fields_v1',
 };
 
 function loadStore(key, fallback) {
@@ -41,43 +47,133 @@ function saveStore(key, value) {
 
 let doneStops = loadStore(STORE_KEYS.done, {});
 let personalNotes = loadStore(STORE_KEYS.notes, {});
-let expenses = loadStore(STORE_KEYS.expenses, []);
+let expenses = loadStore(STORE_KEYS.expenses, []); // cache locale, tenuta sincronizzata da Firestore quando disponibile
 let startTimes = loadStore(STORE_KEYS.startTimes, {});             // { "1": "08:00", ... }
 let durationOverrides = loadStore(STORE_KEYS.durationOverrides, {}); // { "1_0": {guida:40, visita:30}, ... }
 let participants = loadStore(STORE_KEYS.participants,
   ['Emilio', 'Giusi', 'Marco', 'Giulio', 'Grazia', 'Ettore']);
 let cardTopups = loadStore(STORE_KEYS.cardTopups, []); // [{id, person, amount, ts}]
+
+// ---------------- sincronizzazione spese condivise (Firestore, se disponibile) ----------------
+let firestoreConnected = false;
+if (typeof db !== 'undefined' && db) {
+  db.collection('expenses').orderBy('ts', 'asc').onSnapshot((snapshot) => {
+    firestoreConnected = true;
+    expenses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    saveStore(STORE_KEYS.expenses, expenses); // cache locale per l'uso offline
+    if (typeof currentView !== 'undefined' && currentView === 'budget') renderBudget();
+  }, (err) => {
+    console.warn('Firestore non raggiungibile, uso la copia locale delle spese:', err);
+  });
+}
 let descriptionOverrides = loadStore(STORE_KEYS.descriptionOverrides, {}); // { "1_0": "testo modificato dall'utente", ... }
 let noteOverrides = loadStore(STORE_KEYS.noteOverrides, {}); // { "1_0": "nota pratica modificata dall'utente", ... }
-
-function getEffectiveDescription(dayId, idx, s) {
-  const key = stopKey(dayId, idx);
-  return Object.prototype.hasOwnProperty.call(descriptionOverrides, key)
-    ? descriptionOverrides[key]
-    : (s.descrizione || '');
-}
-function getEffectiveNote(dayId, idx, s) {
-  const key = stopKey(dayId, idx);
-  return Object.prototype.hasOwnProperty.call(noteOverrides, key)
-    ? noteOverrides[key]
-    : (s.note || '');
-}
 let priorityOverrides = loadStore(STORE_KEYS.priorityOverrides, {}); // { "1_0": "Imperdibile", ... }
 let collectedPriorities = loadStore(STORE_KEYS.collectedPriorities, {}); // { "Marco": {"1_0":"Imperdibile",...}, ... }
 let suggestions = loadStore(STORE_KEYS.suggestions, []); // [{id, text, ts}]
 let collectedSuggestions = loadStore(STORE_KEYS.collectedSuggestions, {}); // { "Marco": [{text, ts}, ...], ... }
 let photoOverrides = loadStore(STORE_KEYS.photoOverrides, {}); // { "1_0": "https://..." oppure "Titolo Wikipedia" }
-function getEffectivePhotoSource(dayId, idx, s) {
-  const key = stopKey(dayId, idx);
+let mapsOverrides = loadStore(STORE_KEYS.mapsOverrides, {}); // { "1_0": "64.1234, -21.5678" oppure un link Google Maps }
+let hiddenStops = loadStore(STORE_KEYS.hiddenStops, {}); // { "1_0": true, "custom_1_abc": true, ... }
+let customStopsByDay = loadStore(STORE_KEYS.customStops, {}); // { "1": [ {key, da, a, priorita, guida, km, visita, parcheggio, ingresso, note} ] }
+let pernottamentoPhoto = loadStore(STORE_KEYS.pernottamentoPhoto, {}); // { "1": "data:..." oppure "https://...", ... }
+let pernottamentoNote = loadStore(STORE_KEYS.pernottamentoNote, {}); // { "1": "testo libero", ... }
+let pernottamentoFieldOverrides = loadStore(STORE_KEYS.pernottamentoFields, {}); // { "1": {bagno:"Privato", cucina:"Sì", ...}, ... }
+const PERNOTTAMENTO_EDITABLE_FIELDS = [
+  ['n_camere', '🛏', 'N. camere'],
+  ['camere', '🛏', 'Camere (descrizione)'],
+  ['bagno', '🚿', 'Bagno'],
+  ['cucina', '🍳', 'Cucina'],
+  ['colazione', '🥐', 'Colazione'],
+  ['ci_orario', '🕗', 'Check-in (orario)'],
+  ['co_orario', '🕓', 'Check-out (orario)'],
+  ['parcheggio', '🅿️', 'Parcheggio'],
+  ['wifi', '📶', 'WiFi'],
+  ['contatto', '📞', 'Contatto'],
+];
+function getEffectivePernottamento(p) {
+  const ov = pernottamentoFieldOverrides[String(p.notte)] || {};
+  const merged = { ...p };
+  PERNOTTAMENTO_EDITABLE_FIELDS.forEach(([field]) => {
+    if (Object.prototype.hasOwnProperty.call(ov, field)) merged[field] = ov[field];
+  });
+  return merged;
+}
+
+// Tutte le funzioni "getEffective*" ora prendono direttamente una chiave (key),
+// la stessa usata per identificare la tappa ovunque (sia tappe originali "dayId_idx"
+// che tappe aggiunte dall'utente "custom_dayId_xxxxx").
+function getEffectiveDescription(key, s) {
+  return Object.prototype.hasOwnProperty.call(descriptionOverrides, key)
+    ? descriptionOverrides[key]
+    : (s.descrizione || '');
+}
+function getEffectiveNote(key, s) {
+  return Object.prototype.hasOwnProperty.call(noteOverrides, key)
+    ? noteOverrides[key]
+    : (s.note || '');
+}
+function getEffectivePhotoSource(key, s) {
   return Object.prototype.hasOwnProperty.call(photoOverrides, key)
     ? photoOverrides[key]
     : (s.wiki || '');
 }
-function getEffectivePriority(dayId, idx, s) {
-  const key = stopKey(dayId, idx);
+function getDefaultMapsDestination(day, s) {
+  if (s.a && /pernottamento/i.test(s.a) && day.pernottamento) {
+    return day.pernottamento.replace(/\(notte[^)]*\)/gi, '').replace(/⚠/g, '').replace(/\s+/g, ' ').trim();
+  }
+  return s.wiki || `${s.a}, Iceland`;
+}
+function getEffectiveMapsDestination(day, key, s) {
+  return Object.prototype.hasOwnProperty.call(mapsOverrides, key)
+    ? mapsOverrides[key]
+    : getDefaultMapsDestination(day, s);
+}
+function buildMapsUrl(destination) {
+  const val = destination.trim();
+  if (/^https?:\/\//i.test(val)) return val; // link Google Maps incollato per intero
+  if (/^-?\d{1,3}(\.\d+)?\s*,\s*-?\d{1,3}(\.\d+)?$/.test(val)) {
+    // coordinate lat,lng
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(val.replace(/\s+/g, ''))}`;
+  }
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(val)}`;
+}
+function getEffectivePriority(key, s) {
   return Object.prototype.hasOwnProperty.call(priorityOverrides, key)
     ? priorityOverrides[key]
     : (s.priorita || null);
+}
+
+// ---------------- tappe unite: originali + aggiunte dall'utente, con supporto nascondi ----------------
+function getMergedStops(day) {
+  const base = day.stops.map((s, i) => ({ key: stopKey(day.id, i), stop: s, custom: false }));
+  const custom = (customStopsByDay[day.id] || []).map(c => ({ key: c.key, stop: c, custom: true }));
+  return base.concat(custom);
+}
+function isStopHidden(key) {
+  return !!hiddenStops[key];
+}
+function setStopHidden(key, hidden) {
+  if (hidden) hiddenStops[key] = true;
+  else delete hiddenStops[key];
+  saveStore(STORE_KEYS.hiddenStops, hiddenStops);
+}
+function addCustomStop(dayId, data) {
+  const key = `custom_${dayId}_${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
+  const entry = { key, da: data.da || '', a: data.a, priorita: data.priorita || null,
+    guida: data.guida || '0:00', km: data.km || 0, visita: data.visita || '0:00',
+    parcheggio: data.parcheggio ?? null, ingresso: data.ingresso ?? null, note: data.note || '' };
+  if (!customStopsByDay[dayId]) customStopsByDay[dayId] = [];
+  customStopsByDay[dayId].push(entry);
+  saveStore(STORE_KEYS.customStops, customStopsByDay);
+  return key;
+}
+function deleteCustomStop(dayId, key) {
+  if (!customStopsByDay[dayId]) return;
+  customStopsByDay[dayId] = customStopsByDay[dayId].filter(c => c.key !== key);
+  saveStore(STORE_KEYS.customStops, customStopsByDay);
+  delete hiddenStops[key];
+  saveStore(STORE_KEYS.hiddenStops, hiddenStops);
 }
 
 const DEFAULT_START_TIME = '08:00';
@@ -119,23 +215,30 @@ function formatDurationMin(totalMin) {
 function getStartTime(dayId) {
   return startTimes[dayId] || DEFAULT_START_TIME;
 }
-function getEffectiveDurations(dayId, idx, stop) {
-  const ov = durationOverrides[stopKey(dayId, idx)] || {};
+function getEffectiveDurations(key, stop) {
+  const ov = durationOverrides[key] || {};
   const guidaMin = ov.guida !== undefined ? ov.guida : parseHM(stop.guida);
   const visitaMin = ov.visita !== undefined ? ov.visita : parseHM(stop.visita);
   return { guidaMin, visitaMin };
 }
 function computeDayChain(day) {
   let cursor = parseHM(getStartTime(day.id));
-  const out = [];
-  day.stops.forEach((s, idx) => {
-    const { guidaMin, visitaMin } = getEffectiveDurations(day.id, idx, s);
+  const merged = getMergedStops(day);
+  const chain = {}; // key -> {partenza, arrivo, guidaMin, visitaMin, hidden}
+  merged.forEach(({ key, stop }) => {
+    const { guidaMin, visitaMin } = getEffectiveDurations(key, stop);
+    const hidden = isStopHidden(key);
+    if (hidden) {
+      // tolta dal calcolo: non conta nel totale, non sposta gli orari successivi
+      chain[key] = { partenza: cursor, arrivo: cursor, guidaMin, visitaMin, hidden: true };
+      return;
+    }
     const partenza = cursor;
     const arrivo = cursor + guidaMin;
-    out.push({ partenza, arrivo, guidaMin, visitaMin });
+    chain[key] = { partenza, arrivo, guidaMin, visitaMin, hidden: false };
     cursor = arrivo + visitaMin;
   });
-  return out;
+  return chain;
 }
 
 // ---------------- cassa comune: saldi tra partecipanti ----------------
@@ -219,6 +322,29 @@ function priorityInfo(p) {
 
 function stopKey(dayId, idx) { return `${dayId}_${idx}`; }
 
+// ---------------- rende cliccabili eventuali link incollati dentro note/descrizioni ----------------
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+function linkify(text) {
+  const escaped = escapeHtml(text);
+  // riconosce in un solo passaggio sia link http(s) sia coppie di coordinate
+  // incollate così come le copi da Google Maps (es. "63.7796, -18.1684")
+  const combined = /(https?:\/\/[^\s<]+)|(-?\d{1,3}\.\d{3,}\s*,\s*-?\d{1,3}\.\d{3,})/g;
+  return escaped.replace(combined, (match, urlMatch, coordMatch) => {
+    if (urlMatch) {
+      return `<a href="${urlMatch}" target="_blank" rel="noopener">${urlMatch}</a>`;
+    }
+    if (coordMatch) {
+      const coords = coordMatch.replace(/\s+/g, '');
+      return `<a href="https://www.google.com/maps?q=${coords}" target="_blank" rel="noopener">📍 ${coordMatch}</a>`;
+    }
+    return match;
+  });
+}
+
 // ---------------- foto da Wikipedia (fetch on-demand + cache) ----------------
 const WIKI_IMG_CACHE_KEY = 'iceland_wiki_img_cache_v1';
 let wikiImgCache = loadStore(WIKI_IMG_CACHE_KEY, {}); // { "Gullfoss": "https://...jpg" | null }
@@ -244,32 +370,128 @@ async function getWikiImage(title) {
 
 // ---------------- scheda dettagliata di una tappa ----------------
 let currentDetailDay = null;
-let currentDetailIdx = null;
+let currentDetailKey = null;
 
-async function openStopDetailModal(day, idx) {
-  const s = day.stops[idx];
+// mappa ogni giorno alla notte corrispondente nella tabella Pernottamenti,
+// per poter mostrare le informazioni ricche della struttura dentro la scheda della tappa
+const DAY_TO_NOTTE = {
+  0: '1', 1: '2-3', 2: '2-3', 3: '4', 4: '5', 5: '6', 6: '7',
+  7: '8', 8: '9', 9: '10', 10: '11', 11: '12', 12: '13', 13: '14',
+};
+
+function getStopByKey(day, key) {
+  const found = getMergedStops(day).find(m => m.key === key);
+  return found ? found.stop : null;
+}
+
+let currentStayNotte = null;
+
+function renderStayInfoSection(day, s) {
+  const section = document.getElementById('detailStayInfoSection');
+  const isStay = !!(s.a && /pernottamento/i.test(s.a));
+  currentStayNotte = null;
+  if (!isStay) {
+    section.style.display = 'none';
+    return false;
+  }
+  const notte = DAY_TO_NOTTE[day.id];
+  const rawP = notte ? TRIP_DATA.pernottamenti.find(x => String(x.notte) === notte) : null;
+  if (!rawP) {
+    section.style.display = 'none';
+    return false;
+  }
+  currentStayNotte = String(rawP.notte);
+  renderStayInfoGrid(rawP);
+  document.getElementById('detailStayEdit').classList.remove('open');
+  document.getElementById('detailStayReset').style.display =
+    Object.prototype.hasOwnProperty.call(pernottamentoFieldOverrides, currentStayNotte) ? '' : 'none';
+  section.style.display = '';
+  return true;
+}
+
+function renderStayInfoGrid(rawP) {
+  const p = getEffectivePernottamento(rawP);
+  const rows = [
+    ['🛏', 'Camere', p.n_camere ? `${p.n_camere} (${p.camere || ''})`.replace(' ()', '') : (p.camere || '')],
+    ['🚿', 'Bagno', p.bagno],
+    ['🍳', 'Cucina', p.cucina],
+    ['🥐', 'Colazione', p.colazione],
+    ['🕗', 'Check-in', p.ci_orario],
+    ['🕓', 'Check-out', p.co_orario],
+    ['🅿️', 'Parcheggio', p.parcheggio],
+    ['📶', 'WiFi', p.wifi],
+    ['📞', 'Contatto', p.contatto],
+  ].filter(([, , v]) => v && String(v).trim());
+
+  const grid = document.getElementById('detailStayInfoGrid');
+  if (rows.length) {
+    grid.innerHTML = rows.map(([icon, label, val]) =>
+      `<div class="stay-info-item"><span class="stay-info-icon">${icon}</span><span class="stay-info-label">${label}</span><span class="stay-info-val">${val}</span></div>`
+    ).join('');
+  } else {
+    grid.innerHTML = `<div class="stay-info-empty">Nessun dettaglio ancora compilato per questa struttura.</div>`;
+  }
+
+  const form = document.getElementById('detailStayEditForm');
+  form.innerHTML = PERNOTTAMENTO_EDITABLE_FIELDS.map(([field, icon, label]) => `
+    <div class="stay-edit-row">
+      <label>${icon} ${label}</label>
+      <input type="text" data-field="${field}" value="${(p[field] || '').toString().replace(/"/g, '&quot;')}">
+    </div>
+  `).join('');
+}
+
+document.getElementById('detailStayEditToggle').addEventListener('click', () => {
+  document.getElementById('detailStayEdit').classList.toggle('open');
+});
+
+document.getElementById('detailStaySave').addEventListener('click', () => {
+  if (!currentStayNotte) return;
+  const rawP = TRIP_DATA.pernottamenti.find(x => String(x.notte) === currentStayNotte);
+  if (!rawP) return;
+  const ov = pernottamentoFieldOverrides[currentStayNotte] || {};
+  document.querySelectorAll('#detailStayEditForm input[data-field]').forEach(input => {
+    ov[input.dataset.field] = input.value.trim();
+  });
+  pernottamentoFieldOverrides[currentStayNotte] = ov;
+  saveStore(STORE_KEYS.pernottamentoFields, pernottamentoFieldOverrides);
+  renderStayInfoGrid(rawP);
+  document.getElementById('detailStayEdit').classList.remove('open');
+  document.getElementById('detailStayReset').style.display = '';
+  if (currentView === 'info') renderInfo();
+});
+
+document.getElementById('detailStayReset').addEventListener('click', () => {
+  if (!currentStayNotte) return;
+  const rawP = TRIP_DATA.pernottamenti.find(x => String(x.notte) === currentStayNotte);
+  if (!rawP) return;
+  delete pernottamentoFieldOverrides[currentStayNotte];
+  saveStore(STORE_KEYS.pernottamentoFields, pernottamentoFieldOverrides);
+  renderStayInfoGrid(rawP);
+  document.getElementById('detailStayReset').style.display = 'none';
+  if (currentView === 'info') renderInfo();
+});
+
+async function openStopDetailModal(day, key) {
+  const s = getStopByKey(day, key);
   if (!s) return;
   currentDetailDay = day;
-  currentDetailIdx = idx;
+  currentDetailKey = key;
   const chain = computeDayChain(day);
-  const { guidaMin, visitaMin } = chain[idx];
+  const { guidaMin, visitaMin } = chain[key];
 
   const backdrop = document.getElementById('stopDetailBackdrop');
-  const photoBox = document.getElementById('detailPhoto');
   const eyebrow = document.getElementById('detailEyebrow');
   const titleEl = document.getElementById('detailTitle');
   const badgesBox = document.getElementById('detailBadges');
-  const descEl = document.getElementById('detailDesc');
-  const noteSection = document.getElementById('detailNoteSection');
-  const noteEl = document.getElementById('detailNote');
-  const editBox = document.getElementById('detailDescEdit');
-  const textarea = document.getElementById('detailDescTextarea');
-  const resetLink = document.getElementById('detailDescReset');
 
-  eyebrow.textContent = `Tappa ${idx + 1} · ${day.label || 'Giorno ' + day.id} · da ${s.da || ''}`;
+  eyebrow.textContent = `${day.label || 'Giorno ' + day.id} · da ${s.da || ''}`;
   titleEl.textContent = s.a || '';
 
-  const effPriority = getEffectivePriority(day.id, idx, s);
+  const isStay = renderStayInfoSection(day, s);
+  document.getElementById('detailPrioritySection').style.display = isStay ? 'none' : '';
+
+  const effPriority = getEffectivePriority(key, s);
   let badges = '';
   if (guidaMin > 0) badges += `<span class="badge time">🚗 ${formatDurationMin(guidaMin)}${s.km ? ' · ' + s.km + ' km' : ''}</span>`;
   if (visitaMin > 0) badges += `<span class="badge time">⏱ ${formatDurationMin(visitaMin)}</span>`;
@@ -281,25 +503,35 @@ async function openStopDetailModal(day, idx) {
   }
   badgesBox.innerHTML = badges;
 
-  renderPriorityChips(day, idx, s, effPriority);
+  renderDetailMapsLink(day, key, s);
+  document.getElementById('detailMapsEdit').classList.remove('open');
+  document.getElementById('detailMapsReset').style.display =
+    Object.prototype.hasOwnProperty.call(mapsOverrides, key) ? '' : 'none';
+  document.getElementById('detailMapsInput').value = getEffectiveMapsDestination(day, key, s);
 
-  renderDetailDescription(day, idx, s);
-  editBox.classList.remove('open');
-  const key = stopKey(day.id, idx);
-  resetLink.style.display = Object.prototype.hasOwnProperty.call(descriptionOverrides, key) ? '' : 'none';
+  renderPriorityChips(day, key, s, effPriority);
 
-  renderDetailNote(day, idx, s);
-  document.getElementById('detailNoteEdit').classList.remove('open');
-  const noteKeyD = stopKey(day.id, idx);
-  document.getElementById('detailNoteReset').style.display =
-    Object.prototype.hasOwnProperty.call(noteOverrides, noteKeyD) ? '' : 'none';
+  document.getElementById('detailDescSection').style.display = isStay ? 'none' : '';
+  if (!isStay) {
+    renderDetailDescription(key, s);
+    document.getElementById('detailDescEdit').classList.remove('open');
+    document.getElementById('detailDescReset').style.display = Object.prototype.hasOwnProperty.call(descriptionOverrides, key) ? '' : 'none';
+  }
 
-  loadDetailPhoto(day, idx, s);
+  if (isStay) {
+    renderStayNote(currentStayNotte);
+  } else {
+    renderDetailNote(key, s);
+    document.getElementById('detailNoteEdit').classList.remove('open');
+    document.getElementById('detailNoteReset').style.display =
+      Object.prototype.hasOwnProperty.call(noteOverrides, key) ? '' : 'none';
+  }
+
+  loadDetailPhoto(key, s);
   document.getElementById('detailPhotoEdit').classList.remove('open');
-  const photoKeyD = stopKey(day.id, idx);
   document.getElementById('detailPhotoReset').style.display =
-    Object.prototype.hasOwnProperty.call(photoOverrides, photoKeyD) ? '' : 'none';
-  const currentPhotoSrc = getEffectivePhotoSource(day.id, idx, s);
+    Object.prototype.hasOwnProperty.call(photoOverrides, key) ? '' : 'none';
+  const currentPhotoSrc = getEffectivePhotoSource(key, s);
   const photoInputEl = document.getElementById('detailPhotoInput');
   if (currentPhotoSrc.startsWith('data:')) {
     photoInputEl.value = '';
@@ -313,9 +545,9 @@ async function openStopDetailModal(day, idx) {
   lockBodyScroll();
 }
 
-function loadDetailPhoto(day, idx, s) {
+function loadDetailPhoto(key, s) {
   const photoBox = document.getElementById('detailPhoto');
-  const source = getEffectivePhotoSource(day.id, idx, s);
+  const source = getEffectivePhotoSource(key, s);
   if (!source) {
     photoBox.style.display = 'none';
     photoBox.innerHTML = '';
@@ -347,7 +579,7 @@ document.getElementById('detailPhotoEditToggle').addEventListener('click', () =>
 
 document.getElementById('detailPhotoFile').addEventListener('change', (e) => {
   const file = e.target.files[0];
-  if (!file || !currentDetailDay || currentDetailIdx === null) return;
+  if (!file || !currentDetailDay || !currentDetailKey) return;
   const reader = new FileReader();
   reader.onload = () => {
     const img = new Image();
@@ -366,16 +598,15 @@ document.getElementById('detailPhotoFile').addEventListener('change', (e) => {
       canvas.getContext('2d').drawImage(img, 0, 0, width, height);
       const dataUrl = canvas.toDataURL('image/jpeg', 0.78);
 
-      const key = stopKey(currentDetailDay.id, currentDetailIdx);
-      photoOverrides[key] = dataUrl;
+      photoOverrides[currentDetailKey] = dataUrl;
       const ok = saveStore(STORE_KEYS.photoOverrides, photoOverrides);
       if (!ok) {
-        delete photoOverrides[key];
+        delete photoOverrides[currentDetailKey];
         alert('Spazio di archiviazione del dispositivo esaurito: non riesco a salvare altre foto. Prova a eliminarne qualcuna già caricata (Ripristina originale su altre tappe) e riprova.');
         return;
       }
-      const s = currentDetailDay.stops[currentDetailIdx];
-      loadDetailPhoto(currentDetailDay, currentDetailIdx, s);
+      const s = getStopByKey(currentDetailDay, currentDetailKey);
+      loadDetailPhoto(currentDetailKey, s);
       document.getElementById('detailPhotoReset').style.display = '';
       document.getElementById('detailPhotoInput').value = '';
       document.getElementById('detailPhotoInput').placeholder = '📁 È caricata una foto dal dispositivo — scrivi qui per sostituirla con un link o un titolo Wikipedia';
@@ -388,46 +619,75 @@ document.getElementById('detailPhotoFile').addEventListener('change', (e) => {
 });
 
 document.getElementById('detailPhotoSave').addEventListener('click', () => {
-  if (!currentDetailDay || currentDetailIdx === null) return;
-  const key = stopKey(currentDetailDay.id, currentDetailIdx);
+  if (!currentDetailDay || !currentDetailKey) return;
   const val = document.getElementById('detailPhotoInput').value.trim();
-  photoOverrides[key] = val;
+  photoOverrides[currentDetailKey] = val;
   saveStore(STORE_KEYS.photoOverrides, photoOverrides);
-  const s = currentDetailDay.stops[currentDetailIdx];
-  loadDetailPhoto(currentDetailDay, currentDetailIdx, s);
+  const s = getStopByKey(currentDetailDay, currentDetailKey);
+  loadDetailPhoto(currentDetailKey, s);
   document.getElementById('detailPhotoEdit').classList.remove('open');
   document.getElementById('detailPhotoReset').style.display = '';
 });
 
 document.getElementById('detailPhotoReset').addEventListener('click', () => {
-  if (!currentDetailDay || currentDetailIdx === null) return;
-  const key = stopKey(currentDetailDay.id, currentDetailIdx);
-  delete photoOverrides[key];
+  if (!currentDetailDay || !currentDetailKey) return;
+  delete photoOverrides[currentDetailKey];
   saveStore(STORE_KEYS.photoOverrides, photoOverrides);
-  const s = currentDetailDay.stops[currentDetailIdx];
-  loadDetailPhoto(currentDetailDay, currentDetailIdx, s);
-  document.getElementById('detailPhotoInput').value = getEffectivePhotoSource(currentDetailDay.id, currentDetailIdx, s);
+  const s = getStopByKey(currentDetailDay, currentDetailKey);
+  loadDetailPhoto(currentDetailKey, s);
+  document.getElementById('detailPhotoInput').value = getEffectivePhotoSource(currentDetailKey, s);
   document.getElementById('detailPhotoReset').style.display = 'none';
 });
 
-function renderDetailDescription(day, idx, s) {
+function renderDetailDescription(key, s) {
   const descEl = document.getElementById('detailDesc');
   const textarea = document.getElementById('detailDescTextarea');
-  const effective = getEffectiveDescription(day.id, idx, s);
+  const effective = getEffectiveDescription(key, s);
   if (effective) {
-    descEl.innerHTML = effective.split('\n\n').map(p => `<p>${p}</p>`).join('');
+    descEl.innerHTML = effective.split('\n\n').map(p => `<p>${linkify(p)}</p>`).join('');
   } else {
     descEl.innerHTML = `<p class="detail-desc-empty">Nessuna descrizione ancora per questa tappa. Tocca "✏️ Modifica" per scriverne una.</p>`;
   }
   textarea.value = effective;
 }
 
-function renderDetailNote(day, idx, s) {
+function renderDetailMapsLink(day, key, s) {
+  const destination = getEffectiveMapsDestination(day, key, s);
+  document.getElementById('detailMapsLink').href = buildMapsUrl(destination);
+}
+
+document.getElementById('detailMapsEditToggle').addEventListener('click', () => {
+  document.getElementById('detailMapsEdit').classList.toggle('open');
+});
+
+document.getElementById('detailMapsSave').addEventListener('click', () => {
+  if (!currentDetailDay || !currentDetailKey) return;
+  const val = document.getElementById('detailMapsInput').value.trim();
+  if (!val) return;
+  mapsOverrides[currentDetailKey] = val;
+  saveStore(STORE_KEYS.mapsOverrides, mapsOverrides);
+  const s = getStopByKey(currentDetailDay, currentDetailKey);
+  renderDetailMapsLink(currentDetailDay, currentDetailKey, s);
+  document.getElementById('detailMapsEdit').classList.remove('open');
+  document.getElementById('detailMapsReset').style.display = '';
+});
+
+document.getElementById('detailMapsReset').addEventListener('click', () => {
+  if (!currentDetailDay || !currentDetailKey) return;
+  delete mapsOverrides[currentDetailKey];
+  saveStore(STORE_KEYS.mapsOverrides, mapsOverrides);
+  const s = getStopByKey(currentDetailDay, currentDetailKey);
+  renderDetailMapsLink(currentDetailDay, currentDetailKey, s);
+  document.getElementById('detailMapsInput').value = getEffectiveMapsDestination(currentDetailDay, currentDetailKey, s);
+  document.getElementById('detailMapsReset').style.display = 'none';
+});
+
+function renderDetailNote(key, s) {
   const noteEl = document.getElementById('detailNote');
   const textarea = document.getElementById('detailNoteTextarea');
-  const effective = getEffectiveNote(day.id, idx, s);
+  const effective = getEffectiveNote(key, s);
   if (effective) {
-    noteEl.textContent = effective;
+    noteEl.innerHTML = linkify(effective);
     noteEl.classList.remove('detail-desc-empty');
   } else {
     noteEl.textContent = 'Nessuna nota pratica ancora. Tocca "✏️ Modifica" per aggiungerne una (es. condizioni strada, 4x4, guadi).';
@@ -436,9 +696,24 @@ function renderDetailNote(day, idx, s) {
   textarea.value = effective;
 }
 
+function renderStayNote(notte) {
+  const noteEl = document.getElementById('detailNote');
+  const textarea = document.getElementById('detailNoteTextarea');
+  const effective = pernottamentoNote[notte] || '';
+  if (effective) {
+    noteEl.innerHTML = linkify(effective);
+    noteEl.classList.remove('detail-desc-empty');
+  } else {
+    noteEl.textContent = 'Nessuna nota ancora per questo pernottamento. Tocca "✏️ Modifica" per scriverne una (indicazioni, codice del cancello, promemoria...).';
+    noteEl.classList.add('detail-desc-empty');
+  }
+  textarea.value = effective;
+  document.getElementById('detailNoteReset').style.display = 'none'; // le note del pernottamento non hanno un "originale" a cui tornare
+}
+
 const PRIORITY_OPTIONS = ['Imperdibile', 'Facoltativa', 'Da evitare'];
 
-function renderPriorityChips(day, idx, s, current) {
+function renderPriorityChips(day, key, s, current) {
   const box = document.getElementById('detailPriorityChips');
   box.innerHTML = PRIORITY_OPTIONS.map(p => {
     const info = priorityInfo(p);
@@ -447,14 +722,13 @@ function renderPriorityChips(day, idx, s, current) {
   box.querySelectorAll('.pri-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       const newPri = chip.dataset.pri;
-      const key = stopKey(day.id, idx);
       if (newPri === s.priorita) {
         delete priorityOverrides[key]; // torna al valore originale, non serve un override
       } else {
         priorityOverrides[key] = newPri;
       }
       saveStore(STORE_KEYS.priorityOverrides, priorityOverrides);
-      renderPriorityChips(day, idx, s, newPri);
+      renderPriorityChips(day, key, s, newPri);
       renderDayView(); // aggiorna il badge nella lista delle tappe
     });
   });
@@ -468,48 +742,55 @@ document.getElementById('detailNoteEditToggle').addEventListener('click', () => 
 });
 
 document.getElementById('detailDescSave').addEventListener('click', () => {
-  if (!currentDetailDay || currentDetailIdx === null) return;
-  const key = stopKey(currentDetailDay.id, currentDetailIdx);
+  if (!currentDetailDay || !currentDetailKey) return;
   const val = document.getElementById('detailDescTextarea').value.trim();
-  descriptionOverrides[key] = val;
+  descriptionOverrides[currentDetailKey] = val;
   saveStore(STORE_KEYS.descriptionOverrides, descriptionOverrides);
-  const s = currentDetailDay.stops[currentDetailIdx];
-  renderDetailDescription(currentDetailDay, currentDetailIdx, s);
+  const s = getStopByKey(currentDetailDay, currentDetailKey);
+  renderDetailDescription(currentDetailKey, s);
   document.getElementById('detailDescEdit').classList.remove('open');
   document.getElementById('detailDescReset').style.display = '';
   renderDayView(); // aggiorna eventuale visibilità pulsante "Scheda" nella lista
 });
 
 document.getElementById('detailDescReset').addEventListener('click', () => {
-  if (!currentDetailDay || currentDetailIdx === null) return;
-  const key = stopKey(currentDetailDay.id, currentDetailIdx);
-  delete descriptionOverrides[key];
+  if (!currentDetailDay || !currentDetailKey) return;
+  delete descriptionOverrides[currentDetailKey];
   saveStore(STORE_KEYS.descriptionOverrides, descriptionOverrides);
-  const s = currentDetailDay.stops[currentDetailIdx];
-  renderDetailDescription(currentDetailDay, currentDetailIdx, s);
+  const s = getStopByKey(currentDetailDay, currentDetailKey);
+  renderDetailDescription(currentDetailKey, s);
   document.getElementById('detailDescReset').style.display = 'none';
 });
 
 document.getElementById('detailNoteSave').addEventListener('click', () => {
-  if (!currentDetailDay || currentDetailIdx === null) return;
-  const key = stopKey(currentDetailDay.id, currentDetailIdx);
   const val = document.getElementById('detailNoteTextarea').value.trim();
-  noteOverrides[key] = val;
+  if (currentStayNotte) {
+    pernottamentoNote[currentStayNotte] = val;
+    saveStore(STORE_KEYS.pernottamentoNote, pernottamentoNote);
+    renderStayNote(currentStayNotte);
+    document.getElementById('detailNoteEdit').classList.remove('open');
+    if (currentView === 'info') renderInfo();
+    return;
+  }
+  if (!currentDetailDay || !currentDetailKey) return;
+  noteOverrides[currentDetailKey] = val;
   saveStore(STORE_KEYS.noteOverrides, noteOverrides);
-  const s = currentDetailDay.stops[currentDetailIdx];
-  renderDetailNote(currentDetailDay, currentDetailIdx, s);
+  const s = getStopByKey(currentDetailDay, currentDetailKey);
+  renderDetailNote(currentDetailKey, s);
   document.getElementById('detailNoteEdit').classList.remove('open');
   document.getElementById('detailNoteReset').style.display = '';
+  renderDayView();
 });
 
 document.getElementById('detailNoteReset').addEventListener('click', () => {
-  if (!currentDetailDay || currentDetailIdx === null) return;
-  const key = stopKey(currentDetailDay.id, currentDetailIdx);
-  delete noteOverrides[key];
+  if (currentStayNotte) return; // non applicabile alle note del pernottamento
+  if (!currentDetailDay || !currentDetailKey) return;
+  delete noteOverrides[currentDetailKey];
   saveStore(STORE_KEYS.noteOverrides, noteOverrides);
-  const s = currentDetailDay.stops[currentDetailIdx];
-  renderDetailNote(currentDetailDay, currentDetailIdx, s);
+  const s = getStopByKey(currentDetailDay, currentDetailKey);
+  renderDetailNote(currentDetailKey, s);
   document.getElementById('detailNoteReset').style.display = 'none';
+  renderDayView();
 });
 
 document.getElementById('detailClose').addEventListener('click', () => {
@@ -551,9 +832,12 @@ function renderDayView() {
     <div class="stay">🏠 ${day.pernottamento}</div>
   `;
 
+  const merged = getMergedStops(day);
   const chain = computeDayChain(day);
-  const firstDep = chain.length ? chain[0].partenza : parseHM(getStartTime(day.id));
-  const lastArr = chain.length ? chain[chain.length - 1].arrivo : firstDep;
+  const visible = merged.filter(({ key }) => !isStopHidden(key));
+  const hiddenList = merged.filter(({ key }) => isStopHidden(key));
+  const firstDep = visible.length ? chain[visible[0].key].partenza : parseHM(getStartTime(day.id));
+  const lastArr = visible.length ? chain[visible[visible.length - 1].key].arrivo : firstDep;
 
   const timesBar = document.getElementById('dayTimes');
   timesBar.innerHTML = `
@@ -568,6 +852,11 @@ function renderDayView() {
       </div>
     </div>
     ${startTimes[day.id] ? `<span class="dt-reset" id="dayStartReset">↺ ripristina orario predefinito (${DEFAULT_START_TIME})</span>` : ''}
+    <div class="daytimes-actions">
+      <span class="dt-add-stop" id="addStopBtn">➕ Aggiungi tappa in fondo alla giornata</span>
+      ${hiddenList.length ? `<span class="dt-hidden-toggle" id="hiddenStopsToggle">🙈 ${hiddenList.length} tappa/e nascosta/e — mostra</span>` : ''}
+    </div>
+    <div class="hidden-stops-box" id="hiddenStopsBox"></div>
   `;
   document.getElementById('dayStartInput').addEventListener('change', (e) => {
     startTimes[day.id] = e.target.value || DEFAULT_START_TIME;
@@ -582,24 +871,46 @@ function renderDayView() {
       renderDayView();
     });
   }
+  document.getElementById('addStopBtn').addEventListener('click', () => openAddStopModal(day));
+  const hiddenToggleBtn = document.getElementById('hiddenStopsToggle');
+  if (hiddenToggleBtn) {
+    hiddenToggleBtn.addEventListener('click', () => {
+      const box = document.getElementById('hiddenStopsBox');
+      const isOpen = box.classList.toggle('open');
+      if (isOpen) {
+        box.innerHTML = hiddenList.map(({ key, stop }) => `
+          <div class="hidden-stop-row">
+            <span>${stop.a}</span>
+            <span class="dt-show-again" data-key="${key}">👁️ Mostra di nuovo</span>
+          </div>
+        `).join('');
+        box.querySelectorAll('.dt-show-again').forEach(btn => {
+          btn.addEventListener('click', () => {
+            setStopHidden(btn.dataset.key, false);
+            renderDayView();
+          });
+        });
+      }
+    });
+  }
 
   const doneList = doneStops[day.id] || [];
-  const donePct = day.stops.length ? Math.round((doneList.length / day.stops.length) * 100) : 0;
+  const donePct = visible.length ? Math.round((doneList.length / visible.length) * 100) : 0;
   document.getElementById('progressFill').style.width = donePct + '%';
-  document.getElementById('progressLabel').textContent = `${doneList.length} / ${day.stops.length} tappe completate  ·  ${formatMin(firstDep)} → ${formatMin(lastArr)}`;
+  document.getElementById('progressLabel').textContent = `${doneList.length} / ${visible.length} tappe completate  ·  ${formatMin(firstDep)} → ${formatMin(lastArr)}`;
 
   const list = document.getElementById('stopsList');
   list.innerHTML = '';
 
-  day.stops.forEach((s, idx) => {
-    const isDone = doneList.includes(idx);
+  visible.forEach(({ key, stop: s, custom }, displayIdx) => {
+    const isDone = doneList.includes(key);
     const card = document.createElement('div');
     card.className = 'stop-card' + (isDone ? ' done' : '');
 
-    const noteKey = stopKey(day.id, idx);
-    const { partenza, arrivo, guidaMin, visitaMin } = chain[idx];
+    const { partenza, arrivo, guidaMin, visitaMin } = chain[key];
+    const effectiveNote = getEffectiveNote(key, s);
 
-    const pri = priorityInfo(getEffectivePriority(day.id, idx, s));
+    const pri = priorityInfo(getEffectivePriority(key, s));
     let badges = '';
     if (pri) badges += `<span class="badge ${pri.cls}">${pri.label}</span>`;
     if (guidaMin > 0) badges += `<span class="badge time">🚗 ${formatDurationMin(guidaMin)}${s.km ? ' · ' + s.km + ' km' : ''}</span>`;
@@ -612,24 +923,25 @@ function renderDayView() {
     if (s.ingresso !== null && s.ingresso !== undefined && s.ingresso > 0) {
       badges += `<span class="badge cost">🎟 ${fmtEuro(s.ingresso)}</span>`;
     }
+    if (custom) badges += `<span class="badge custom-badge">➕ Aggiunta da te</span>`;
 
-    const savedNote = personalNotes[noteKey] || '';
-    const isOverridden = !!durationOverrides[noteKey];
+    const savedNote = personalNotes[key] || '';
+    const isOverridden = !!durationOverrides[key];
 
     card.innerHTML = `
       <div class="stop-top">
-        <div class="stop-check ${isDone ? 'checked' : ''}" data-idx="${idx}">${isDone ? '✓' : ''}</div>
+        <div class="stop-check ${isDone ? 'checked' : ''}" data-key="${key}">${isDone ? '✓' : ''}</div>
         <div class="stop-main">
           <div class="stop-title-row">
-            <div class="stop-title stop-title-clickable" data-idx="${idx}">${idx + 1}. ${s.a || ''}</div>
-            <button class="stop-detail-btn detail-open" data-idx="${idx}">📖 Scheda</button>
+            <div class="stop-title stop-title-clickable" data-key="${key}">${displayIdx + 1}. ${s.a || ''}</div>
+            <button class="stop-detail-btn detail-open" data-key="${key}">📖 Scheda</button>
           </div>
           <div class="stop-sub">da ${s.da || ''}</div>
           <div class="stop-times">
             🕗 <b>${formatMin(partenza)}</b> → <b>${formatMin(arrivo)}</b>
-            <span class="stop-time-edit-toggle" data-idx="${idx}">✏️ orari${isOverridden ? ' •' : ''}</span>
+            <span class="stop-time-edit-toggle" data-key="${key}">✏️ orari${isOverridden ? ' •' : ''}</span>
           </div>
-          <div class="stop-timeedit" data-idx="${idx}">
+          <div class="stop-timeedit" data-key="${key}">
             <div class="te-row">
               <label>Guida (min)</label>
               <input type="number" min="0" step="1" class="te-guida" value="${guidaMin}">
@@ -639,15 +951,18 @@ function renderDayView() {
               <input type="number" min="0" step="1" class="te-visita" value="${visitaMin}">
             </div>
             <div class="te-actions">
-              <button class="te-apply" data-idx="${idx}">Applica</button>
-              ${isOverridden ? `<button class="te-reset" data-idx="${idx}">Ripristina</button>` : ''}
+              <button class="te-apply" data-key="${key}">Applica</button>
+              ${isOverridden ? `<button class="te-reset" data-key="${key}">Ripristina</button>` : ''}
             </div>
           </div>
           <div class="stop-badges">${badges}</div>
-          ${s.note ? `<div class="stop-note">${s.note}</div>` : ''}
-          <span class="stop-toggle" data-idx="${idx}">✏️ Nota personale</span>
-          <div class="stop-personal" data-idx="${idx}">
+          ${effectiveNote ? `<div class="stop-note">${linkify(effectiveNote)}</div>` : ''}
+          <span class="stop-toggle" data-key="${key}">✏️ Nota personale</span>
+          <div class="stop-personal" data-key="${key}">
             <textarea placeholder="Scrivi qui una nota, un'impressione, un promemoria...">${savedNote}</textarea>
+          </div>
+          <div class="stop-hide-row">
+            <span class="stop-hide-btn" data-key="${key}" data-custom="${custom ? '1' : '0'}">${custom ? '🗑️ Elimina questa tappa' : '🙈 Nascondi questa tappa'}</span>
           </div>
         </div>
       </div>
@@ -658,10 +973,10 @@ function renderDayView() {
   // wire checkboxes
   list.querySelectorAll('.stop-check').forEach(el => {
     el.addEventListener('click', () => {
-      const idx = parseInt(el.dataset.idx, 10);
+      const key = el.dataset.key;
       const arr = doneStops[currentDayId] || [];
-      const pos = arr.indexOf(idx);
-      if (pos >= 0) arr.splice(pos, 1); else arr.push(idx);
+      const pos = arr.indexOf(key);
+      if (pos >= 0) arr.splice(pos, 1); else arr.push(key);
       doneStops[currentDayId] = arr;
       saveStore(STORE_KEYS.done, doneStops);
       renderDayView();
@@ -671,8 +986,8 @@ function renderDayView() {
   // wire personal note toggles
   list.querySelectorAll('.stop-toggle').forEach(el => {
     el.addEventListener('click', () => {
-      const idx = el.dataset.idx;
-      const box = list.querySelector(`.stop-personal[data-idx="${idx}"]`);
+      const key = el.dataset.key;
+      const box = list.querySelector(`.stop-personal[data-key="${key}"]`);
       box.classList.toggle('open');
     });
   });
@@ -680,16 +995,14 @@ function renderDayView() {
   // wire detail modal opener (titolo o bottone "Scheda completa")
   list.querySelectorAll('.detail-open, .stop-title-clickable').forEach(el => {
     el.addEventListener('click', () => {
-      const idx = parseInt(el.dataset.idx, 10);
-      openStopDetailModal(day, idx);
+      openStopDetailModal(day, el.dataset.key);
     });
   });
 
   // wire textarea auto-save
   list.querySelectorAll('.stop-personal textarea').forEach(ta => {
-    const idx = ta.closest('.stop-personal').dataset.idx;
+    const key = ta.closest('.stop-personal').dataset.key;
     ta.addEventListener('blur', () => {
-      const key = stopKey(currentDayId, idx);
       personalNotes[key] = ta.value;
       saveStore(STORE_KEYS.notes, personalNotes);
     });
@@ -698,8 +1011,8 @@ function renderDayView() {
   // wire time-edit toggles
   list.querySelectorAll('.stop-time-edit-toggle').forEach(el => {
     el.addEventListener('click', () => {
-      const idx = el.dataset.idx;
-      const box = list.querySelector(`.stop-timeedit[data-idx="${idx}"]`);
+      const key = el.dataset.key;
+      const box = list.querySelector(`.stop-timeedit[data-key="${key}"]`);
       box.classList.toggle('open');
     });
   });
@@ -707,27 +1020,68 @@ function renderDayView() {
   // wire apply/reset for per-stop duration overrides
   list.querySelectorAll('.te-apply').forEach(btn => {
     btn.addEventListener('click', () => {
-      const idx = btn.dataset.idx;
-      const box = list.querySelector(`.stop-timeedit[data-idx="${idx}"]`);
+      const key = btn.dataset.key;
+      const box = list.querySelector(`.stop-timeedit[data-key="${key}"]`);
       const guida = parseInt(box.querySelector('.te-guida').value, 10) || 0;
       const visita = parseInt(box.querySelector('.te-visita').value, 10) || 0;
-      durationOverrides[stopKey(currentDayId, idx)] = { guida, visita };
+      durationOverrides[key] = { guida, visita };
       saveStore(STORE_KEYS.durationOverrides, durationOverrides);
       renderDayView();
     });
   });
   list.querySelectorAll('.te-reset').forEach(btn => {
     btn.addEventListener('click', () => {
-      const idx = btn.dataset.idx;
-      delete durationOverrides[stopKey(currentDayId, idx)];
+      const key = btn.dataset.key;
+      delete durationOverrides[key];
       saveStore(STORE_KEYS.durationOverrides, durationOverrides);
       renderDayView();
     });
   });
+
+  // wire nascondi/elimina tappa
+  list.querySelectorAll('.stop-hide-btn').forEach(el => {
+    el.addEventListener('click', () => {
+      const key = el.dataset.key;
+      const isCustom = el.dataset.custom === '1';
+      if (isCustom) {
+        if (confirm('Eliminare definitivamente questa tappa aggiunta da te? Non si può annullare.')) {
+          deleteCustomStop(day.id, key);
+          renderDayView();
+        }
+      } else {
+        setStopHidden(key, true);
+        renderDayView();
+      }
+    });
+  });
+}
+
+// ---------------- aggiungi una nuova tappa in fondo alla giornata ----------------
+function openAddStopModal(day) {
+  const name = prompt('Nome della nuova tappa:');
+  if (!name || !name.trim()) return;
+  const guidaStr = prompt('Minuti di guida per arrivarci (numero, es. 20):', '0') || '0';
+  const visitaStr = prompt('Minuti di visita previsti (numero, es. 30):', '30') || '0';
+  const guidaMin = parseInt(guidaStr, 10) || 0;
+  const visitaMin = parseInt(visitaStr, 10) || 0;
+  const guida = `${Math.floor(guidaMin / 60)}:${String(guidaMin % 60).padStart(2, '0')}`;
+  const visita = `${Math.floor(visitaMin / 60)}:${String(visitaMin % 60).padStart(2, '0')}`;
+  addCustomStop(day.id, { a: name.trim(), guida, visita, priorita: 'Facoltativa' });
+  renderDayView();
 }
 
 // ---------------- render: budget ----------------
 function renderBudget() {
+  const syncEl = document.getElementById('syncStatus');
+  if (syncEl) {
+    if (typeof db === 'undefined' || !db) {
+      syncEl.innerHTML = `<span class="sync-badge sync-off">⚪ Cassa comune solo locale (Firebase non attivo)</span>`;
+    } else if (firestoreConnected) {
+      syncEl.innerHTML = `<span class="sync-badge sync-on">🟢 Spese sincronizzate con gli altri dispositivi</span>`;
+    } else {
+      syncEl.innerHTML = `<span class="sync-badge sync-wait">🟡 Connessione al database in corso…</span>`;
+    }
+  }
   const persone = participants.length;
   const totale = expenses.reduce((sum, e) => sum + e.amount, 0);
   const totaleComune = expenses.filter(e => e.shared !== false).reduce((s, e) => s + e.amount, 0);
@@ -829,9 +1183,16 @@ function renderBudget() {
   list.querySelectorAll('.del').forEach(el => {
     el.addEventListener('click', () => {
       const id = el.dataset.id;
-      expenses = expenses.filter(e => e.id !== id);
-      saveStore(STORE_KEYS.expenses, expenses);
-      renderBudget();
+      if (typeof db !== 'undefined' && db && firestoreConnected) {
+        db.collection('expenses').doc(id).delete().catch((err) => {
+          console.warn('Eliminazione su Firestore fallita:', err);
+        });
+        // la vista si aggiorna da sola tramite onSnapshot
+      } else {
+        expenses = expenses.filter(e => e.id !== id);
+        saveStore(STORE_KEYS.expenses, expenses);
+        renderBudget();
+      }
     });
   });
 }
@@ -1145,15 +1506,106 @@ function renderInfo() {
   renderSuggestions();
   const list = document.getElementById('pernottamentiList');
   list.innerHTML = '';
-  TRIP_DATA.pernottamenti.forEach(p => {
+  TRIP_DATA.pernottamenti.forEach(rawP => {
+    const p = getEffectivePernottamento(rawP);
+    const key = String(p.notte);
     const card = document.createElement('div');
-    card.className = 'info-card';
+    card.className = 'info-card stay-card';
+    const mapsQuery = `${p.struttura} ${p.localita}, Iceland`.replace(/⚠/g, '').replace(/\s+/g, ' ').trim();
+    const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(mapsQuery)}`;
+
+    const infoRows = [
+      ['🛏', 'Camere', p.n_camere ? `${p.n_camere} (${p.camere || ''})`.replace(' ()', '') : (p.camere || '')],
+      ['🚿', 'Bagno', p.bagno],
+      ['🍳', 'Cucina', p.cucina],
+      ['🥐', 'Colazione', p.colazione],
+      ['🕗', 'Check-in', p.ci_orario],
+      ['🕓', 'Check-out', p.co_orario],
+      ['🅿️', 'Parcheggio', p.parcheggio],
+      ['📶', 'WiFi', p.wifi],
+      ['📞', 'Contatto', p.contatto],
+    ].filter(([, , v]) => v && String(v).trim());
+
+    const photoSrc = pernottamentoPhoto[key] || '';
+    const savedNote = pernottamentoNote[key] || '';
+
     card.innerHTML = `
-      <div class="n">Notte ${p.notte} · ${p.checkin} → ${p.checkout}</div>
-      <div class="s">${p.struttura}</div>
-      <div class="l">${p.localita}</div>
+      <div class="stay-photo" data-key="${key}">
+        ${photoSrc ? `<img src="${photoSrc}" alt="${p.struttura}">` : `<div class="stay-photo-empty">📷 Nessuna foto — tocca "Aggiungi foto" sotto</div>`}
+      </div>
+      <div class="stay-body">
+        <div class="stay-title">${p.struttura}</div>
+        <div class="stay-location">📍 ${p.localita}</div>
+        <div class="stay-sub">Notte ${p.notte} · ${p.checkin} → ${p.checkout}${p.costo ? ' · ' + fmtEuro(p.costo) : ''}</div>
+        <a class="info-maps-link" href="${mapsUrl}" target="_blank" rel="noopener">🗺️ Apri in Google Maps</a>
+        ${infoRows.length ? `<div class="stay-info-grid">${infoRows.map(([icon, label, val]) =>
+          `<div class="stay-info-item"><span class="stay-info-icon">${icon}</span><span class="stay-info-label">${label}</span><span class="stay-info-val">${val}</span></div>`
+        ).join('')}</div>` : ''}
+        ${p.extra ? `<div class="stay-extra">${linkify(p.extra)}</div>` : ''}
+        <div class="stay-photo-actions">
+          <label class="stay-photo-btn" for="stayPhotoFile_${key}">📷 ${photoSrc ? 'Cambia' : 'Aggiungi'} foto</label>
+          <input type="file" id="stayPhotoFile_${key}" data-key="${key}" accept="image/*" style="display:none">
+          ${photoSrc ? `<span class="stay-photo-remove" data-key="${key}">🗑️ Rimuovi foto</span>` : ''}
+        </div>
+        <div class="stay-note-section">
+          <div class="stay-note-title">📝 Note</div>
+          <textarea class="stay-note-textarea" data-key="${key}" placeholder="Scrivi qui note libere su questa struttura (indicazioni, codice cancello, promemoria...)">${savedNote}</textarea>
+        </div>
+      </div>
     `;
     list.appendChild(card);
+  });
+
+  // upload foto pernottamento (con ridimensionamento/compressione come per le tappe)
+  list.querySelectorAll('input[type="file"][id^="stayPhotoFile_"]').forEach(input => {
+    input.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      const key = e.target.dataset.key;
+      if (!file || !key) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const maxDim = 1280;
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            const scale = maxDim / Math.max(width, height);
+            width = Math.round(width * scale);
+            height = Math.round(height * scale);
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.78);
+          pernottamentoPhoto[key] = dataUrl;
+          const ok = saveStore(STORE_KEYS.pernottamentoPhoto, pernottamentoPhoto);
+          if (!ok) {
+            delete pernottamentoPhoto[key];
+            alert('Spazio di archiviazione esaurito: elimina qualche foto già caricata e riprova.');
+            return;
+          }
+          renderInfo();
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  });
+
+  list.querySelectorAll('.stay-photo-remove').forEach(el => {
+    el.addEventListener('click', () => {
+      delete pernottamentoPhoto[el.dataset.key];
+      saveStore(STORE_KEYS.pernottamentoPhoto, pernottamentoPhoto);
+      renderInfo();
+    });
+  });
+
+  list.querySelectorAll('.stay-note-textarea').forEach(ta => {
+    ta.addEventListener('blur', () => {
+      pernottamentoNote[ta.dataset.key] = ta.value;
+      saveStore(STORE_KEYS.pernottamentoNote, pernottamentoNote);
+    });
   });
 }
 
@@ -1277,7 +1729,6 @@ document.getElementById('expSave').addEventListener('click', () => {
   const isShared = selectedType === 'shared';
   const paymentSource = isShared ? selectedSource : 'person'; // le spese personali sono sempre "di una persona"
   const entry = {
-    id: 'e' + Date.now() + Math.random().toString(36).slice(2, 7),
     day: document.getElementById('expDay').value,
     category: selectedCategory,
     amount: amount,
@@ -1287,8 +1738,22 @@ document.getElementById('expSave').addEventListener('click', () => {
     paymentSource: paymentSource,
     ts: Date.now(),
   };
-  expenses.push(entry);
-  saveStore(STORE_KEYS.expenses, expenses);
+  if (typeof db !== 'undefined' && db) {
+    // Firestore: la spesa arriva a tutti i dispositivi collegati tramite onSnapshot,
+    // che si occupa anche di aggiornare la vista — non serve fare altro qui.
+    db.collection('expenses').add(entry).catch((err) => {
+      console.warn('Salvataggio su Firestore fallito, salvo solo in locale:', err);
+      entry.id = 'e' + Date.now() + Math.random().toString(36).slice(2, 7);
+      expenses.push(entry);
+      saveStore(STORE_KEYS.expenses, expenses);
+      if (currentView === 'budget') renderBudget();
+    });
+  } else {
+    entry.id = 'e' + Date.now() + Math.random().toString(36).slice(2, 7);
+    expenses.push(entry);
+    saveStore(STORE_KEYS.expenses, expenses);
+    if (currentView === 'budget') renderBudget();
+  }
   expModalBackdrop.classList.remove('open');
   unlockBodyScroll();
   if (currentView === 'budget') renderBudget();
@@ -1296,7 +1761,7 @@ document.getElementById('expSave').addEventListener('click', () => {
 
 // ---------------- export / backup ----------------
 document.getElementById('exportBtn').addEventListener('click', () => {
-  const payload = { doneStops, personalNotes, expenses, participants, startTimes, durationOverrides, cardTopups, descriptionOverrides, noteOverrides, priorityOverrides, suggestions, photoOverrides, exportedAt: new Date().toISOString() };
+  const payload = { doneStops, personalNotes, expenses, participants, startTimes, durationOverrides, cardTopups, descriptionOverrides, noteOverrides, priorityOverrides, suggestions, photoOverrides, mapsOverrides, hiddenStops, customStopsByDay, pernottamentoPhoto, pernottamentoNote, pernottamentoFieldOverrides, exportedAt: new Date().toISOString() };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1306,6 +1771,80 @@ document.getElementById('exportBtn').addEventListener('click', () => {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+});
+
+document.getElementById('importBackupFile').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    let data;
+    try {
+      data = JSON.parse(reader.result);
+    } catch (err) {
+      alert('File non valido: assicurati di aver selezionato un backup .json esportato da questa app.');
+      e.target.value = '';
+      return;
+    }
+    const when = data.exportedAt ? new Date(data.exportedAt).toLocaleString('it-IT') : 'data sconosciuta';
+    const ok = confirm(`Importare questo backup (creato il ${when})?\n\nSovrascriverà TUTTE le modifiche attuali su questo dispositivo (spese, note, descrizioni, priorità, foto, ecc.) con quelle contenute nel file.`);
+    if (!ok) { e.target.value = ''; return; }
+
+    const fields = [
+      ['doneStops', STORE_KEYS.done],
+      ['personalNotes', STORE_KEYS.notes],
+      ['expenses', STORE_KEYS.expenses],
+      ['participants', STORE_KEYS.participants],
+      ['startTimes', STORE_KEYS.startTimes],
+      ['durationOverrides', STORE_KEYS.durationOverrides],
+      ['cardTopups', STORE_KEYS.cardTopups],
+      ['descriptionOverrides', STORE_KEYS.descriptionOverrides],
+      ['noteOverrides', STORE_KEYS.noteOverrides],
+      ['priorityOverrides', STORE_KEYS.priorityOverrides],
+      ['suggestions', STORE_KEYS.suggestions],
+      ['photoOverrides', STORE_KEYS.photoOverrides],
+      ['mapsOverrides', STORE_KEYS.mapsOverrides],
+      ['hiddenStops', STORE_KEYS.hiddenStops],
+      ['customStopsByDay', STORE_KEYS.customStops],
+      ['pernottamentoPhoto', STORE_KEYS.pernottamentoPhoto],
+      ['pernottamentoNote', STORE_KEYS.pernottamentoNote],
+      ['pernottamentoFieldOverrides', STORE_KEYS.pernottamentoFields],
+    ];
+    fields.forEach(([field, storeKey]) => {
+      if (Object.prototype.hasOwnProperty.call(data, field)) {
+        saveStore(storeKey, data[field]);
+      }
+    });
+
+    // ricarica lo stato in memoria dai valori appena salvati
+    doneStops = loadStore(STORE_KEYS.done, {});
+    personalNotes = loadStore(STORE_KEYS.notes, {});
+    expenses = loadStore(STORE_KEYS.expenses, []);
+    participants = loadStore(STORE_KEYS.participants, participants);
+    startTimes = loadStore(STORE_KEYS.startTimes, {});
+    durationOverrides = loadStore(STORE_KEYS.durationOverrides, {});
+    cardTopups = loadStore(STORE_KEYS.cardTopups, []);
+    descriptionOverrides = loadStore(STORE_KEYS.descriptionOverrides, {});
+    noteOverrides = loadStore(STORE_KEYS.noteOverrides, {});
+    priorityOverrides = loadStore(STORE_KEYS.priorityOverrides, {});
+    suggestions = loadStore(STORE_KEYS.suggestions, []);
+    photoOverrides = loadStore(STORE_KEYS.photoOverrides, {});
+    mapsOverrides = loadStore(STORE_KEYS.mapsOverrides, {});
+    hiddenStops = loadStore(STORE_KEYS.hiddenStops, {});
+    customStopsByDay = loadStore(STORE_KEYS.customStops, {});
+    pernottamentoPhoto = loadStore(STORE_KEYS.pernottamentoPhoto, {});
+    pernottamentoNote = loadStore(STORE_KEYS.pernottamentoNote, {});
+    pernottamentoFieldOverrides = loadStore(STORE_KEYS.pernottamentoFields, {});
+
+    renderDayTabs();
+    renderDayView();
+    if (currentView === 'budget') renderBudget();
+    if (currentView === 'info') renderInfo();
+
+    alert('Backup importato con successo.');
+    e.target.value = '';
+  };
+  reader.readAsText(file);
 });
 
 // ---------------- online/offline status ----------------

@@ -140,6 +140,145 @@ decidere il programma definitivo, nella scheda **Info** trovi ora
 Il pulsante "↺ Cancella tutte" nella sezione 2 rimuove tutte le risposte
 caricate, se vuoi ricominciare il confronto da capo.
 
+## Nascondere o eliminare una tappa
+
+In cima a ogni giornata, sotto l'orario di partenza, trovi ora
+**"🙈 Nascondi questa tappa"** dentro ogni scheda (in fondo, sotto le note
+personali). Quando nascondi una tappa:
+- **Sparisce dalla lista** del giorno
+- **Il suo tempo (guida + visita) non conta più** nel totale della giornata
+- **Gli orari di tutte le tappe successive si ricalcolano** automaticamente,
+  esattamente come quando modifichi i minuti a mano con "✏️ orari"
+
+Le tappe nascoste non sono perse: in cima alla giornata trovi
+"🙈 N tappa/e nascosta/e — mostra", che apre un elenco con un tasto
+"👁️ Mostra di nuovo" per ciascuna, se cambi idea.
+
+**Un limite onesto da sapere**: il tempo di guida "recuperato" per la tappa
+successiva a quella nascosta era originariamente calcolato per il tragitto
+specifico da quella tappa nascosta — non per il tragitto diretto dalla
+tappa precedente. Per la maggior parte delle tappe (punti vicini sulla
+stessa strada) la differenza è minima, ma se saltate una vera deviazione,
+il tempo potrebbe essere leggermente approssimato.
+
+## Aggiungere una nuova tappa
+
+In cima a ogni giornata trovi anche **"➕ Aggiungi tappa in fondo alla
+giornata"**: inserisci nome, minuti di guida e minuti di visita (te lo
+chiede l'app passo passo), e la tappa viene aggiunta alla fine
+dell'itinerario di quel giorno, con i suoi orari calcolati di conseguenza.
+
+**Limite attuale**: le tappe aggiunte vanno sempre **in fondo alla
+giornata**, non si possono inserire in un punto preciso in mezzo alle
+altre — se ti serve un ordine diverso, sposta gli orari a mano con
+"✏️ orari" sulle tappe coinvolte. Le tappe che aggiungi tu si riconoscono
+dal badge "➕ Aggiunta da te" e possono essere **eliminate del tutto**
+(tasto "🗑️ Elimina questa tappa" al posto di "Nascondi", visto che per
+queste non c'è un dato originale a cui tornare).
+
+## Scheda pernottamento arricchita
+
+In Info → Pernottamenti, ogni scheda ora mette in risalto il **nome della
+struttura** (titolo grande), con la **località** subito sotto, e mostra
+tutte le informazioni pratiche disponibili (camere, bagno, cucina,
+colazione, orari di check-in/out, parcheggio, WiFi, contatto) — solo i
+campi effettivamente compilati vengono mostrati.
+
+- **📷 Foto**: puoi caricare una foto della struttura dal tuo dispositivo
+  (compressa automaticamente); "🗑️ Rimuovi foto" per toglierla
+- **🗺️ Google Maps**: link diretto come prima
+- **📝 Note**: un campo di testo libero, vuoto di default — scrivici pure
+  subito quello che vuoi (indicazioni, codice del cancello, promemoria),
+  oppure lascialo per dopo e incollaci le info dal tuo Excel quando è
+  definitivo. Si salva automaticamente quando esci dal campo.
+
+## 🔄 Spese sincronizzate tra dispositivi (test in corso)
+
+Le spese della cassa comune ora possono sincronizzarsi in tempo reale tra
+più dispositivi tramite Firebase (progetto "viaggio-in-islanda"). Nella
+scheda **Budget**, in alto, un'etichetta indica lo stato:
+
+- 🟢 **Spese sincronizzate con gli altri dispositivi** — funziona, ogni
+  spesa che inserisci (o elimini) compare automaticamente su tutti i
+  dispositivi collegati
+- 🟡 **Connessione in corso** — sta ancora collegandosi, aspetta un attimo
+- ⚪ **Solo locale** — Firebase non è raggiungibile in questo momento
+  (es. offline): le spese restano comunque salvate sul dispositivo e si
+  sincronizzano da sole non appena torna la connessione
+
+**Tutto il resto dell'app** (descrizioni, foto, priorità, note, posizioni,
+orari) **resta locale a ogni dispositivo come prima** — solo le spese
+condivise passano da Firebase, perché sono l'unica cosa che ha senso vedere
+uguale su tutti i telefoni.
+
+Se il file `firebase-config.js` non viene caricato (es. lo dimentichi
+quando aggiorni gli altri file su GitHub), l'app continua a funzionare
+normalmente ma torna al salvataggio solo locale delle spese, senza dare
+errori.
+
+## Backup completo: esportare e reimportare tutto
+
+Nella scheda **Info**, sezione "Dati e backup":
+
+- **"⬇️ Esporta tutto (backup JSON)"**: scarica un file con **tutto** quello
+  che hai personalizzato su questo dispositivo — spese, note personali,
+  descrizioni modificate, priorità cambiate, foto caricate, orari
+  aggiustati, quote della carta comune, tutto.
+- **"⬆️ Importa un backup"**: se devi pulire la cache del browser (o hai
+  cambiato dispositivo), carica qui il file esportato in precedenza —
+  l'app ti chiede conferma e poi ripristina tutto esattamente come era.
+
+**Consiglio pratico**: prendi l'abitudine di esportare un backup ogni tanto
+mentre lavori, soprattutto prima di fare pulizie di cache per problemi
+tecnici — così non rischi mai di perdere il lavoro fatto.
+
+## Aprire una tappa in Google Maps
+
+Ogni scheda dettagliata (e ogni scheda di pernottamento in Info) ha ora un
+pulsante **"🗺️ Apri in Google Maps"**: parte la navigazione verso quel
+posto usando la tua posizione attuale come partenza, senza dover digitare
+nulla. Dove disponibile, usa il nome della voce Wikipedia collegata (più
+preciso per la geolocalizzazione); altrimenti usa il nome della tappa.
+
+## Più posizioni nella stessa nota (link cliccabili)
+
+Il campo "Posizione" accetta un solo punto per volta, ma capita di avere
+**due possibilità di arrivo** (es. due parcheggi diversi). Soluzione: scrivi
+entrambe le coordinate direttamente dentro le **note pratiche**, così come
+le copi da Google Maps (es. `63.7796, -18.1684`) — **non serve costruire
+nessun link a mano**: l'app riconosce automaticamente le coppie di
+coordinate nel testo e le trasforma da sola in link cliccabili verso Google
+Maps. Riconosce anche eventuali link http/https scritti per intero, se
+preferisci incollare quelli.
+
+Esempio di nota:
+*"Parcheggio principale: 63.7796, -18.1684 — se pieno, secondo parcheggio:
+63.7801, -18.1700"*
+
+→ diventano entrambi automaticamente cliccabili, senza scrivere altro.
+
+Funziona anche nella descrizione e nell'anteprima della nota sulla card.
+
+## Impostare una posizione precisa (es. il parcheggio esatto)
+
+A volte il link automatico a Google Maps porta in una zona generica invece
+che al punto esatto (es. l'ingresso di un parcheggio specifico). Dentro la
+scheda dettagliata, sopra il pulsante "🗺️ Apri in Google Maps" trovi ora
+"✏️ Modifica posizione". Puoi incollare:
+
+- **Coordinate GPS precise** (es. `64.1466, -21.9426`)
+- **Un link di Google Maps** copiato direttamente dall'app (apri Google
+  Maps, tieni premuto sul punto esatto finché non compare un pin, poi tocca
+  "Condividi" per copiare il link)
+
+**Come trovare le coordinate esatte**: apri Google Maps, tieni premuto sul
+punto preciso che ti interessa (es. l'ingresso del parcheggio) finché non
+compare un pin rosso — le coordinate compaiono in basso nella scheda del
+posto, oppure tocca "Condividi" per avere direttamente il link.
+
+Come per gli altri campi, resta salvato sul dispositivo con possibilità di
+ripristino alla posizione calcolata automaticamente.
+
 ## Modificare la foto di una tappa
 
 Dentro la scheda dettagliata, sopra la foto trovi ora **"📷 Foto"** con

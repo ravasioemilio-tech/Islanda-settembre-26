@@ -50,6 +50,7 @@
 
 <div id="view-budget" style="display:none">
   <div class="section-title">Budget del viaggio</div>
+  <div class="sync-status" id="syncStatus"></div>
   <div class="budget-summary" id="budgetSummary"></div>
   <div class="section-title">💳 Carta comune</div>
   <div class="budget-summary" id="cardBalanceBox"></div>
@@ -74,7 +75,9 @@
   <div class="info-list" id="pernottamentiList"></div>
   <div class="section-title">Dati e backup</div>
   <div class="export-bar">
-    <button id="exportBtn">⬇️ Esporta spese e note (backup JSON)</button>
+    <button id="exportBtn">⬇️ Esporta tutto (backup JSON)</button>
+    <label class="import-backup-label" for="importBackupFile">⬆️ Importa un backup</label>
+    <input type="file" id="importBackupFile" accept="application/json" style="display:none">
   </div>
 </div>
 
@@ -133,6 +136,21 @@
       <div class="detail-eyebrow" id="detailEyebrow"></div>
       <h2 id="detailTitle"></h2>
       <div class="detail-badges" id="detailBadges"></div>
+      <div class="detail-section" id="detailMapsSection">
+        <div class="detail-section-title-row">
+          <div class="detail-section-title">🗺️ Posizione</div>
+          <span class="detail-edit-toggle" id="detailMapsEditToggle">✏️ Modifica posizione</span>
+        </div>
+        <a class="detail-maps-link" id="detailMapsLink" href="#" target="_blank" rel="noopener">🗺️ Apri in Google Maps</a>
+        <div class="detail-desc-edit" id="detailMapsEdit">
+          <input type="text" id="detailMapsInput" placeholder="Incolla coordinate (es. 64.1234, -21.5678) o un link di Google Maps copiato dall'app">
+          <div class="detail-edit-actions">
+            <button class="btn primary" id="detailMapsSave">Salva</button>
+            <span class="detail-reset-link" id="detailMapsReset">↺ Ripristina originale</span>
+          </div>
+          <div class="pc-hint">Per trovare coordinate precise: apri Google Maps, tieni premuto sul punto esatto (es. l'ingresso del parcheggio) finché non compare un pin — le coordinate appaiono in basso, oppure tocca "Condividi" per copiare il link diretto a quel punto.</div>
+        </div>
+      </div>
       <div class="detail-section" id="detailPhotoSection">
         <div class="detail-section-title-row">
           <div class="detail-section-title">📷 Foto</div>
@@ -147,6 +165,20 @@
           <div class="detail-edit-actions">
             <button class="btn primary" id="detailPhotoSave">Salva</button>
             <span class="detail-reset-link" id="detailPhotoReset">↺ Ripristina originale</span>
+          </div>
+        </div>
+      </div>
+      <div class="detail-section" id="detailStayInfoSection" style="display:none;">
+        <div class="detail-section-title-row">
+          <div class="detail-section-title">🏨 Informazioni struttura</div>
+          <span class="detail-edit-toggle" id="detailStayEditToggle">✏️ Modifica</span>
+        </div>
+        <div class="stay-info-grid" id="detailStayInfoGrid"></div>
+        <div class="detail-desc-edit" id="detailStayEdit">
+          <div class="stay-edit-form" id="detailStayEditForm"></div>
+          <div class="detail-edit-actions">
+            <button class="btn primary" id="detailStaySave">Salva</button>
+            <span class="detail-reset-link" id="detailStayReset">↺ Ripristina originale</span>
           </div>
         </div>
       </div>
@@ -189,6 +221,10 @@
 </div>
 
 <script src="data.js"></script>
+<!-- Firebase (per la cassa comune condivisa tra i partecipanti) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
