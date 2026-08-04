@@ -79,6 +79,62 @@ let customStopsByDay = loadStore(STORE_KEYS.customStops, {}); // { "1": [ {key, 
 let pernottamentoPhoto = loadStore(STORE_KEYS.pernottamentoPhoto, {}); // { "1": "data:..." oppure "https://...", ... }
 let pernottamentoNote = loadStore(STORE_KEYS.pernottamentoNote, {}); // { "1": "testo libero", ... }
 let pernottamentoFieldOverrides = loadStore(STORE_KEYS.pernottamentoFields, {}); // { "1": {bagno:"Privato", cucina:"Sì", ...}, ... }
+
+// ---------------- sincronizzazione foto condivise (Firestore, se disponibile) ----------------
+// Restiamo dentro Firestore (niente Firebase Storage): le foto sono già compresse abbastanza
+// da stare comode nel limite di 1 MB per documento, e così evitiamo di dover attivare un
+// piano a pagamento solo per lo spazio file.
+let photosFirestoreConnected = false;
+if (typeof db !== 'undefined' && db) {
+  let photosFirstSync = true;
+  db.collection('sharedPhotos').onSnapshot((snapshot) => {
+    const remote = {};
+    snapshot.docs.forEach(doc => { remote[doc.id] = doc.data().value; });
+
+    if (photosFirstSync) {
+      photosFirstSync = false;
+      // prima sincronizzazione: le foto già presenti solo in locale (da prima che Firestore
+      // fosse collegato) vengono caricate su Firestore, così non si perdono
+      Object.keys(photoOverrides).forEach(key => {
+        const id = 'stop_' + key;
+        if (!(id in remote)) {
+          db.collection('sharedPhotos').doc(id).set({ value: photoOverrides[key] }).catch(e => console.warn('Migrazione foto tappa fallita:', e));
+        }
+      });
+      Object.keys(pernottamentoPhoto).forEach(notte => {
+        const id = 'stay_' + notte;
+        if (!(id in remote)) {
+          db.collection('sharedPhotos').doc(id).set({ value: pernottamentoPhoto[notte] }).catch(e => console.warn('Migrazione foto pernottamento fallita:', e));
+        }
+      });
+    }
+
+    const newPhotoOverrides = {};
+    const newPernottamentoPhoto = {};
+    Object.keys(remote).forEach(id => {
+      if (id.startsWith('stop_')) newPhotoOverrides[id.slice(5)] = remote[id];
+      else if (id.startsWith('stay_')) newPernottamentoPhoto[id.slice(5)] = remote[id];
+    });
+    photoOverrides = newPhotoOverrides;
+    pernottamentoPhoto = newPernottamentoPhoto;
+    saveStore(STORE_KEYS.photoOverrides, photoOverrides);
+    saveStore(STORE_KEYS.pernottamentoPhoto, pernottamentoPhoto);
+    photosFirestoreConnected = true;
+
+    // aggiorna la vista aperta in questo momento, se pertinente
+    if (currentDetailDay && currentDetailKey) {
+      const s = getStopByKey(currentDetailDay, currentDetailKey);
+      if (s) {
+        loadDetailPhoto(currentDetailKey, s);
+        const isStayNow = !!(s.a && /pernottamento/i.test(s.a));
+        if (isStayNow) renderStayInfoSection(currentDetailDay, s);
+      }
+    }
+    if (typeof currentView !== 'undefined' && currentView === 'info') renderInfo();
+  }, (err) => {
+    console.warn('Firestore (foto) non raggiungibile, uso la copia locale:', err);
+  });
+}
 const PERNOTTAMENTO_EDITABLE_FIELDS = [
   ['n_camere', '🛏', 'N. camere'],
   ['camere', '🛏', 'Camere (descrizione)'],
@@ -577,6 +633,34 @@ document.getElementById('detailPhotoEditToggle').addEventListener('click', () =>
   document.getElementById('detailPhotoEdit').classList.toggle('open');
 });
 
+// ---------------- salvataggio/eliminazione di una foto (Firestore se disponibile, altrimenti solo locale) ----------------
+function savePhotoValue(docId, value, onDone) {
+  if (typeof db !== 'undefined' && db) {
+    db.collection('sharedPhotos').doc(docId).set({ value }).then(() => {
+      if (onDone) onDone(true);
+    }).catch((err) => {
+      console.warn('Salvataggio foto su Firestore fallito:', err);
+      alert(`⚠️ La foto NON è stata condivisa con gli altri (resta solo su questo dispositivo).\n\nErrore Firebase: ${err.code || err.message || err}\n\nSegnalalo così com'è, aiuta a capire la causa.`);
+      if (onDone) onDone(false, err);
+    });
+  } else if (onDone) {
+    onDone(true);
+  }
+}
+function deletePhotoValue(docId, onDone) {
+  if (typeof db !== 'undefined' && db) {
+    db.collection('sharedPhotos').doc(docId).delete().then(() => {
+      if (onDone) onDone(true);
+    }).catch((err) => {
+      console.warn('Eliminazione foto su Firestore fallita:', err);
+      alert(`⚠️ Non sono riuscito a togliere la foto anche per gli altri.\n\nErrore Firebase: ${err.code || err.message || err}`);
+      if (onDone) onDone(false, err);
+    });
+  } else if (onDone) {
+    onDone(true);
+  }
+}
+
 document.getElementById('detailPhotoFile').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file || !currentDetailDay || !currentDetailKey) return;
@@ -584,19 +668,24 @@ document.getElementById('detailPhotoFile').addEventListener('change', (e) => {
   reader.onload = () => {
     const img = new Image();
     img.onload = () => {
-      // ridimensiona/comprimi lato client per non riempire lo spazio del dispositivo
-      const maxDim = 1280;
-      let { width, height } = img;
-      if (width > maxDim || height > maxDim) {
-        const scale = maxDim / Math.max(width, height);
-        width = Math.round(width * scale);
-        height = Math.round(height * scale);
-      }
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.78);
+      // ridimensiona/comprimi lato client, così la foto sta comoda anche dentro un
+      // documento Firestore (limite 1 MB) oltre a occupare poco spazio sul dispositivo
+      const compress = (maxDim, quality) => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const scale = maxDim / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        return canvas.toDataURL('image/jpeg', quality);
+      };
+      let dataUrl = compress(1280, 0.78);
+      if (dataUrl.length > 900000) dataUrl = compress(1000, 0.6);   // ancora troppo grande: comprimi di più
+      if (dataUrl.length > 900000) dataUrl = compress(700, 0.5);    // ultimo tentativo
 
       photoOverrides[currentDetailKey] = dataUrl;
       const ok = saveStore(STORE_KEYS.photoOverrides, photoOverrides);
@@ -611,6 +700,9 @@ document.getElementById('detailPhotoFile').addEventListener('change', (e) => {
       document.getElementById('detailPhotoInput').value = '';
       document.getElementById('detailPhotoInput').placeholder = '📁 È caricata una foto dal dispositivo — scrivi qui per sostituirla con un link o un titolo Wikipedia';
       document.getElementById('detailPhotoEdit').classList.remove('open');
+      savePhotoValue('stop_' + currentDetailKey, dataUrl, (success) => {
+        if (!success) console.warn('La foto resta salvata solo su questo dispositivo per ora.');
+      });
     };
     img.src = reader.result;
   };
@@ -627,6 +719,7 @@ document.getElementById('detailPhotoSave').addEventListener('click', () => {
   loadDetailPhoto(currentDetailKey, s);
   document.getElementById('detailPhotoEdit').classList.remove('open');
   document.getElementById('detailPhotoReset').style.display = '';
+  savePhotoValue('stop_' + currentDetailKey, val);
 });
 
 document.getElementById('detailPhotoReset').addEventListener('click', () => {
@@ -637,6 +730,7 @@ document.getElementById('detailPhotoReset').addEventListener('click', () => {
   loadDetailPhoto(currentDetailKey, s);
   document.getElementById('detailPhotoInput').value = getEffectivePhotoSource(currentDetailKey, s);
   document.getElementById('detailPhotoReset').style.display = 'none';
+  deletePhotoValue('stop_' + currentDetailKey);
 });
 
 function renderDetailDescription(key, s) {
@@ -1566,18 +1660,23 @@ function renderInfo() {
       reader.onload = () => {
         const img = new Image();
         img.onload = () => {
-          const maxDim = 1280;
-          let { width, height } = img;
-          if (width > maxDim || height > maxDim) {
-            const scale = maxDim / Math.max(width, height);
-            width = Math.round(width * scale);
-            height = Math.round(height * scale);
-          }
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.78);
+          const compress = (maxDim, quality) => {
+            let { width, height } = img;
+            if (width > maxDim || height > maxDim) {
+              const scale = maxDim / Math.max(width, height);
+              width = Math.round(width * scale);
+              height = Math.round(height * scale);
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+            return canvas.toDataURL('image/jpeg', quality);
+          };
+          let dataUrl = compress(1280, 0.78);
+          if (dataUrl.length > 900000) dataUrl = compress(1000, 0.6);
+          if (dataUrl.length > 900000) dataUrl = compress(700, 0.5);
+
           pernottamentoPhoto[key] = dataUrl;
           const ok = saveStore(STORE_KEYS.pernottamentoPhoto, pernottamentoPhoto);
           if (!ok) {
@@ -1586,6 +1685,9 @@ function renderInfo() {
             return;
           }
           renderInfo();
+          savePhotoValue('stay_' + key, dataUrl, (success) => {
+            if (!success) console.warn('La foto resta salvata solo su questo dispositivo per ora.');
+          });
         };
         img.src = reader.result;
       };
@@ -1595,9 +1697,11 @@ function renderInfo() {
 
   list.querySelectorAll('.stay-photo-remove').forEach(el => {
     el.addEventListener('click', () => {
-      delete pernottamentoPhoto[el.dataset.key];
+      const key = el.dataset.key;
+      delete pernottamentoPhoto[key];
       saveStore(STORE_KEYS.pernottamentoPhoto, pernottamentoPhoto);
       renderInfo();
+      deletePhotoValue('stay_' + key);
     });
   });
 
