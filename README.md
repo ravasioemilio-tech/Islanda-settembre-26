@@ -324,6 +324,17 @@ fonti (islandafacile.it, guidetoiceland.is, Wikipedia e altri articoli di
 viaggio) — non sono testi copiati, ma un riassunto originale pensato per
 essere letto in pochi secondi sul posto.
 
+## Spesa personale divisa con alcuni partecipanti
+
+Per il caso "usciamo in pochi a cena, pago io con la mia carta, ma va divisa
+solo tra chi c'era": nel modulo "Nuova spesa" → tipo **"👤 Spesa
+personale"** → **"Pagato da"** (chi ha messo la carta) → compare
+**"Dividere con alcuni partecipanti"**: spunta la casella, poi seleziona
+chi altro era presente (chi ha pagato è già incluso automaticamente). Il
+conto si divide solo tra le persone selezionate — gli altri non si
+trovano nessun addebito. Nell'elenco spese, questa voce compare con
+l'etichetta "👥 diviso con N (nomi)".
+
 ## Cassa comune con carta prepagata e saldi tra i partecipanti
 
 Nella scheda **Info** trovi "Partecipanti al viaggio" (6 nomi già inseriti,

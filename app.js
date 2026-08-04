@@ -298,19 +298,22 @@ function computeDayChain(day) {
 }
 
 // ---------------- cassa comune: saldi tra partecipanti ----------------
-// Solo le spese di cassa comune ANTICIPATE DA UNA PERSONA (non pagate con la carta)
-// entrano nel calcolo di chi deve dare/ricevere: quelle pagate con la carta comune
-// sono già "della cassa" e non generano debiti tra le persone.
+// Le spese di cassa comune ANTICIPATE DA UNA PERSONA (non pagate con la carta) e le spese
+// "personali ma condivise con alcuni" entrano nel calcolo di chi deve dare/ricevere.
+// Le spese pagate con la carta comune sono già "della cassa" e non generano debiti tra le persone.
+// Le spese davvero personali (nessuna suddivisione) non generano nessun debito.
 function computeBalances() {
   const net = {};
   participants.forEach(p => { net[p] = 0; });
   expenses.forEach(e => {
-    if (e.shared === false) return;       // spesa personale
-    if (e.paymentSource !== 'person') return; // pagata con la carta comune, nessun debito
+    if (e.paymentSource === 'card') return; // pagata con la carta comune, nessun debito diretto
     if (!e.paidBy || !(e.paidBy in net)) return;
-    const share = e.amount / participants.length;
+    const group = (e.splitAmong && e.splitAmong.length) ? e.splitAmong.filter(p => p in net)
+      : (e.shared === false ? null : participants);
+    if (!group || group.length === 0) return; // spesa puramente personale, nessuna suddivisione
+    const share = e.amount / group.length;
     net[e.paidBy] += e.amount - share;
-    participants.forEach(p => {
+    group.forEach(p => {
       if (p !== e.paidBy) net[p] -= share;
     });
   });
@@ -1259,9 +1262,15 @@ function renderBudget() {
     const item = document.createElement('div');
     item.className = 'expense-item';
     let typeTag;
-    if (e.shared === false) typeTag = `👤 personale · pagato da ${e.paidBy || '—'}`;
-    else if (e.paymentSource === 'card') typeTag = '💳 cassa comune (carta)';
-    else typeTag = `🤝 cassa comune · anticipato da ${e.paidBy || '—'}`;
+    if (e.shared === false && e.splitAmong && e.splitAmong.length) {
+      typeTag = `👥 diviso con ${e.splitAmong.length} (${e.splitAmong.join(', ')}) · pagato da ${e.paidBy || '—'}`;
+    } else if (e.shared === false) {
+      typeTag = `👤 personale · pagato da ${e.paidBy || '—'}`;
+    } else if (e.paymentSource === 'card') {
+      typeTag = '💳 cassa comune (carta)';
+    } else {
+      typeTag = `🤝 cassa comune · anticipato da ${e.paidBy || '—'}`;
+    }
     item.innerHTML = `
       <div class="info">
         <div class="cat">${e.category} — ${e.day}</div>
@@ -1741,6 +1750,7 @@ function updateModalFieldsVisibility() {
   const sourceField = document.getElementById('expSourceField');
   const paidByField = document.getElementById('expPaidByField');
   const paidByLabel = document.getElementById('expPaidByLabel');
+  const splitField = document.getElementById('expSplitField');
 
   if (selectedType === 'shared') {
     sourceField.style.display = '';
@@ -1750,13 +1760,35 @@ function updateModalFieldsVisibility() {
       paidByField.style.display = '';
       paidByLabel.textContent = 'Anticipato da';
     }
+    splitField.style.display = 'none'; // una spesa di cassa comune è già divisa tra tutti
   } else {
     // spesa personale: niente scelta di fonte, serve solo sapere chi l'ha pagata
     sourceField.style.display = 'none';
     paidByField.style.display = '';
     paidByLabel.textContent = 'Pagato da';
+    splitField.style.display = '';
   }
 }
+
+function renderExpSplitPeople() {
+  const box = document.getElementById('expSplitPeople');
+  const payer = document.getElementById('expPaidBy').value;
+  box.innerHTML = participants.map(p => `
+    <label class="exp-split-person">
+      <input type="checkbox" value="${p}" ${p === payer ? 'checked disabled' : ''}> ${p}
+    </label>
+  `).join('');
+}
+
+document.getElementById('expSplitToggle').addEventListener('change', (e) => {
+  const box = document.getElementById('expSplitPeople');
+  box.style.display = e.target.checked ? '' : 'none';
+  if (e.target.checked) renderExpSplitPeople();
+});
+
+document.getElementById('expPaidBy').addEventListener('change', () => {
+  if (document.getElementById('expSplitToggle').checked) renderExpSplitPeople();
+});
 
 function openExpenseModal() {
   const daySel = document.getElementById('expDay');
@@ -1814,6 +1846,9 @@ function openExpenseModal() {
 
   document.getElementById('expAmount').value = '';
   document.getElementById('expNote').value = '';
+  document.getElementById('expSplitToggle').checked = false;
+  document.getElementById('expSplitPeople').style.display = 'none';
+  document.getElementById('expSplitPeople').innerHTML = '';
   updateModalFieldsVisibility();
   expModalBackdrop.classList.add('open');
   lockBodyScroll();
@@ -1832,14 +1867,22 @@ document.getElementById('expSave').addEventListener('click', () => {
   }
   const isShared = selectedType === 'shared';
   const paymentSource = isShared ? selectedSource : 'person'; // le spese personali sono sempre "di una persona"
+  const paidByVal = paymentSource === 'card' ? null : document.getElementById('expPaidBy').value;
+  let splitAmong = null;
+  if (!isShared && document.getElementById('expSplitToggle').checked) {
+    splitAmong = Array.from(document.querySelectorAll('#expSplitPeople input[type="checkbox"]:checked')).map(el => el.value);
+    if (paidByVal && !splitAmong.includes(paidByVal)) splitAmong.push(paidByVal);
+    if (splitAmong.length < 2) splitAmong = null; // dividere con una sola persona (se stessi) non ha senso
+  }
   const entry = {
     day: document.getElementById('expDay').value,
     category: selectedCategory,
     amount: amount,
     note: document.getElementById('expNote').value.trim(),
-    paidBy: paymentSource === 'card' ? null : document.getElementById('expPaidBy').value,
+    paidBy: paidByVal,
     shared: isShared,
     paymentSource: paymentSource,
+    splitAmong: splitAmong,
     ts: Date.now(),
   };
   if (typeof db !== 'undefined' && db) {

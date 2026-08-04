@@ -1169,6 +1169,40 @@ button {
   font-family: inherit;
   background: #fbfbf7;
 }
+.exp-split-toggle-label {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  color: var(--ink) !important;
+  cursor: pointer;
+}
+.exp-split-toggle-label input[type="checkbox"] {
+  width: auto;
+  flex: 0 0 auto;
+}
+.exp-split-people {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  background: var(--teal-light);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.exp-split-person {
+  display: flex !important;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+.exp-split-person input[type="checkbox"] {
+  width: auto;
+}
 .chip-row {
   display: flex;
   gap: 8px;
