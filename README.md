@@ -330,10 +330,12 @@ Per il caso "usciamo in pochi a cena, pago io con la mia carta, ma va divisa
 solo tra chi c'era": nel modulo "Nuova spesa" → tipo **"👤 Spesa
 personale"** → **"Pagato da"** (chi ha messo la carta) → compare
 **"Dividere con alcuni partecipanti"**: spunta la casella, poi seleziona
-chi altro era presente (chi ha pagato è già incluso automaticamente). Il
-conto si divide solo tra le persone selezionate — gli altri non si
-trovano nessun addebito. Nell'elenco spese, questa voce compare con
-l'etichetta "👥 diviso con N (nomi)".
+chi altro era presente — chi ha pagato parte già selezionato per comodità,
+ma **puoi togliere anche lui** se il caso è "ho anticipato io ma la spesa
+non mi riguarda" (es. un regalo per gli altri): in quel caso gli viene
+restituito l'intero importo, diviso solo tra le persone rimaste
+selezionate. Nell'elenco spese, questa voce compare con l'etichetta
+"👥 diviso con N (nomi)".
 
 ## Cassa comune con carta prepagata e saldi tra i partecipanti
 

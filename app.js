@@ -312,10 +312,17 @@ function computeBalances() {
       : (e.shared === false ? null : participants);
     if (!group || group.length === 0) return; // spesa puramente personale, nessuna suddivisione
     const share = e.amount / group.length;
-    net[e.paidBy] += e.amount - share;
-    group.forEach(p => {
-      if (p !== e.paidBy) net[p] -= share;
-    });
+    const payerInGroup = group.includes(e.paidBy);
+    if (payerInGroup) {
+      // chi ha pagato è anche tra i beneficiari: gli spetta indietro tutto tranne la sua quota
+      net[e.paidBy] += e.amount - share;
+      group.forEach(p => { if (p !== e.paidBy) net[p] -= share; });
+    } else {
+      // chi ha pagato NON è tra i beneficiari (es. ha anticipato un regalo per gli altri):
+      // gli va restituito l'intero importo, e la quota si divide solo tra chi è nel gruppo
+      net[e.paidBy] += e.amount;
+      group.forEach(p => { net[p] -= share; });
+    }
   });
   return net; // positivo = deve ricevere, negativo = deve dare
 }
@@ -1775,7 +1782,7 @@ function renderExpSplitPeople() {
   const payer = document.getElementById('expPaidBy').value;
   box.innerHTML = participants.map(p => `
     <label class="exp-split-person">
-      <input type="checkbox" value="${p}" ${p === payer ? 'checked disabled' : ''}> ${p}
+      <input type="checkbox" value="${p}" ${p === payer ? 'checked' : ''}> ${p}
     </label>
   `).join('');
 }
@@ -1871,8 +1878,7 @@ document.getElementById('expSave').addEventListener('click', () => {
   let splitAmong = null;
   if (!isShared && document.getElementById('expSplitToggle').checked) {
     splitAmong = Array.from(document.querySelectorAll('#expSplitPeople input[type="checkbox"]:checked')).map(el => el.value);
-    if (paidByVal && !splitAmong.includes(paidByVal)) splitAmong.push(paidByVal);
-    if (splitAmong.length < 2) splitAmong = null; // dividere con una sola persona (se stessi) non ha senso
+    if (splitAmong.length < 1) splitAmong = null; // nessuno selezionato: tratta come spesa puramente personale
   }
   const entry = {
     day: document.getElementById('expDay').value,
