@@ -151,33 +151,34 @@ let photosFirestoreConnected = false;
 if (typeof db !== 'undefined' && db) {
   let photosFirstSync = true;
   db.collection('sharedPhotos').onSnapshot((snapshot) => {
-    const remote = {};
-    snapshot.docs.forEach(doc => { remote[doc.id] = doc.data().value; });
+    // i documenti "nuovi" hanno i campi key/type/value; quelli vecchi (da prima di questa
+    // modifica) hanno solo "value" e vanno riconosciuti dal prefisso del nome del documento
+    const newPhotoOverrides = {};
+    const newPernottamentoPhoto = {};
+    snapshot.docs.forEach(doc => {
+      const d = doc.data();
+      if (d && d.key && d.type) {
+        if (d.type === 'stop') newPhotoOverrides[d.key] = d.value;
+        else if (d.type === 'stay') newPernottamentoPhoto[d.key] = d.value;
+      } else if (doc.id.startsWith('stop_')) {
+        newPhotoOverrides[doc.id.slice(5)] = d.value; // formato precedente, senza "/" nel nome
+      } else if (doc.id.startsWith('stay_')) {
+        newPernottamentoPhoto[doc.id.slice(5)] = d.value;
+      }
+    });
 
     if (photosFirstSync) {
       photosFirstSync = false;
       // prima sincronizzazione: le foto già presenti solo in locale (da prima che Firestore
       // fosse collegato) vengono caricate su Firestore, così non si perdono
       Object.keys(photoOverrides).forEach(key => {
-        const id = 'stop_' + key;
-        if (!(id in remote)) {
-          db.collection('sharedPhotos').doc(id).set({ value: photoOverrides[key] }).catch(e => console.warn('Migrazione foto tappa fallita:', e));
-        }
+        if (!(key in newPhotoOverrides)) savePhotoValue(key, 'stop', photoOverrides[key]);
       });
       Object.keys(pernottamentoPhoto).forEach(notte => {
-        const id = 'stay_' + notte;
-        if (!(id in remote)) {
-          db.collection('sharedPhotos').doc(id).set({ value: pernottamentoPhoto[notte] }).catch(e => console.warn('Migrazione foto pernottamento fallita:', e));
-        }
+        if (!(notte in newPernottamentoPhoto)) savePhotoValue(notte, 'stay', pernottamentoPhoto[notte]);
       });
     }
 
-    const newPhotoOverrides = {};
-    const newPernottamentoPhoto = {};
-    Object.keys(remote).forEach(id => {
-      if (id.startsWith('stop_')) newPhotoOverrides[id.slice(5)] = remote[id];
-      else if (id.startsWith('stay_')) newPernottamentoPhoto[id.slice(5)] = remote[id];
-    });
     photoOverrides = newPhotoOverrides;
     pernottamentoPhoto = newPernottamentoPhoto;
     saveStore(STORE_KEYS.photoOverrides, photoOverrides);
@@ -215,10 +216,11 @@ if (typeof db !== 'undefined' && db) {
         (day.stops || []).forEach((s, idx) => {
           if (!s.a) return;
           const oldId = `stop_${day.id}_${idx}`;
-          const newId = `stop_${stopKeyByName(day.id, s.a)}`;
+          const realKey = stopKeyByName(day.id, s.a);
+          const newId = firestoreSafeDocId(`stop_${realKey}`);
           if (oldId === newId) return;
           if (existing[oldId] && !existing[newId]) {
-            toWrite.push([newId, existing[oldId]]);
+            toWrite.push([newId, { key: realKey, type: 'stop', value: existing[oldId].value }]);
           }
         });
       });
@@ -768,9 +770,17 @@ document.getElementById('detailPhotoEditToggle').addEventListener('click', () =>
 });
 
 // ---------------- salvataggio/eliminazione di una foto (Firestore se disponibile, altrimenti solo locale) ----------------
-function savePhotoValue(docId, value, onDone) {
+// Un ID documento Firestore non può contenere "/", ".", "#", "$", "[" o "]" — ma i nomi delle
+// tappe a volte li contengono (es. "notte 1/2"). Per questo l'ID del documento è sempre "reso
+// sicuro" sostituendo quei caratteri, mentre la vera chiave (con i caratteri originali) resta
+// salvata dentro al documento stesso: così il collegamento funziona qualunque sia il nome.
+function firestoreSafeDocId(realKey) {
+  return String(realKey).replace(/[\/.#$\[\]]/g, '_');
+}
+function savePhotoValue(realKey, type, value, onDone) {
   if (typeof db !== 'undefined' && db) {
-    db.collection('sharedPhotos').doc(docId).set({ value }).then(() => {
+    const docId = firestoreSafeDocId(`${type}_${realKey}`);
+    db.collection('sharedPhotos').doc(docId).set({ key: realKey, type, value }).then(() => {
       if (onDone) onDone(true);
     }).catch((err) => {
       console.warn('Salvataggio foto su Firestore fallito:', err);
@@ -781,8 +791,9 @@ function savePhotoValue(docId, value, onDone) {
     onDone(true);
   }
 }
-function deletePhotoValue(docId, onDone) {
+function deletePhotoValue(realKey, type, onDone) {
   if (typeof db !== 'undefined' && db) {
+    const docId = firestoreSafeDocId(`${type}_${realKey}`);
     db.collection('sharedPhotos').doc(docId).delete().then(() => {
       if (onDone) onDone(true);
     }).catch((err) => {
@@ -834,7 +845,7 @@ document.getElementById('detailPhotoFile').addEventListener('change', (e) => {
       document.getElementById('detailPhotoInput').value = '';
       document.getElementById('detailPhotoInput').placeholder = '📁 È caricata una foto dal dispositivo — scrivi qui per sostituirla con un link o un titolo Wikipedia';
       document.getElementById('detailPhotoEdit').classList.remove('open');
-      savePhotoValue('stop_' + currentDetailKey, dataUrl, (success) => {
+      savePhotoValue(currentDetailKey, 'stop', dataUrl, (success) => {
         if (!success) console.warn('La foto resta salvata solo su questo dispositivo per ora.');
       });
     };
@@ -853,7 +864,7 @@ document.getElementById('detailPhotoSave').addEventListener('click', () => {
   loadDetailPhoto(currentDetailKey, s);
   document.getElementById('detailPhotoEdit').classList.remove('open');
   document.getElementById('detailPhotoReset').style.display = '';
-  savePhotoValue('stop_' + currentDetailKey, val);
+  savePhotoValue(currentDetailKey, 'stop', val);
 });
 
 document.getElementById('detailPhotoReset').addEventListener('click', () => {
@@ -864,7 +875,7 @@ document.getElementById('detailPhotoReset').addEventListener('click', () => {
   loadDetailPhoto(currentDetailKey, s);
   document.getElementById('detailPhotoInput').value = getEffectivePhotoSource(currentDetailKey, s);
   document.getElementById('detailPhotoReset').style.display = 'none';
-  deletePhotoValue('stop_' + currentDetailKey);
+  deletePhotoValue(currentDetailKey, 'stop');
 });
 
 function renderDetailDescription(key, s) {
@@ -1829,7 +1840,7 @@ function renderInfo() {
             return;
           }
           renderInfo();
-          savePhotoValue('stay_' + key, dataUrl, (success) => {
+          savePhotoValue(key, 'stay', dataUrl, (success) => {
             if (!success) console.warn('La foto resta salvata solo su questo dispositivo per ora.');
           });
         };
@@ -1845,7 +1856,7 @@ function renderInfo() {
       delete pernottamentoPhoto[key];
       saveStore(STORE_KEYS.pernottamentoPhoto, pernottamentoPhoto);
       renderInfo();
-      deletePhotoValue('stay_' + key);
+      deletePhotoValue(key, 'stay');
     });
   });
 
@@ -1858,7 +1869,7 @@ function renderInfo() {
       pernottamentoPhoto[key] = val;
       saveStore(STORE_KEYS.pernottamentoPhoto, pernottamentoPhoto);
       renderInfo();
-      savePhotoValue('stay_' + key, val, (success) => {
+      savePhotoValue(key, 'stay', val, (success) => {
         if (!success) console.warn('Il link resta salvato solo su questo dispositivo per ora.');
       });
     });

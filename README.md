@@ -311,6 +311,14 @@ dei giorni "sicuri" vengono spostate alla nuova chiave anche lì, e da
 quel momento tornano visibili su tutti i dispositivi (non serve rifarlo
 su ognuno).
 
+**Causa radice risolta**: alcuni nomi di tappa contengono il carattere "/"
+(es. "notte 1/2"), che Firestore non accetta dentro l'identificativo di un
+documento — questo bloccava il salvataggio delle foto per quelle tappe
+specifiche, indipendentemente dalla migrazione. Ora l'app usa sempre un
+identificativo "reso sicuro" per il documento, mentre il nome vero (con
+tutti i suoi caratteri originali) resta salvato come campo dentro al
+documento stesso — così funziona con qualunque nome, senza eccezioni.
+
 ## Le tue modifiche ora sono al sicuro da future ristrutturazioni
 
 Fino a poco fa, le modifiche a una tappa (descrizione, note, priorità,
