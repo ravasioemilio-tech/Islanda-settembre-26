@@ -475,15 +475,22 @@ function renderStayInfoSection(day, s) {
   return true;
 }
 
+function buildCheckTimesHtml(p) {
+  const parts = [];
+  if (p.ci_orario && String(p.ci_orario).trim()) parts.push(`🕗 Check-in: <b>dalle ${p.ci_orario}</b>`);
+  if (p.co_orario && String(p.co_orario).trim()) parts.push(`🕓 Check-out: <b>entro le ${p.co_orario}</b>`);
+  if (!parts.length) return '';
+  return `<div class="stay-checktimes">${parts.join(' &nbsp;·&nbsp; ')}</div>`;
+}
+
 function renderStayInfoGrid(rawP) {
   const p = getEffectivePernottamento(rawP);
+  document.getElementById('detailStayCheckTimes').innerHTML = buildCheckTimesHtml(p);
   const rows = [
     ['🛏', 'Camere', p.n_camere ? `${p.n_camere} (${p.camere || ''})`.replace(' ()', '') : (p.camere || '')],
     ['🚿', 'Bagno', p.bagno],
     ['🍳', 'Cucina', p.cucina],
     ['🥐', 'Colazione', p.colazione],
-    ['🕗', 'Check-in', p.ci_orario],
-    ['🕓', 'Check-out', p.co_orario],
     ['🅿️', 'Parcheggio', p.parcheggio],
     ['📶', 'WiFi', p.wifi],
     ['📞', 'Contatto', p.contatto],
@@ -1012,7 +1019,8 @@ function renderDayView() {
     card.className = 'stop-card' + (isDone ? ' done' : '');
 
     const { partenza, arrivo, guidaMin, visitaMin } = chain[key];
-    const effectiveNote = getEffectiveNote(key, s);
+    const effectiveDescFull = getEffectiveDescription(key, s);
+    const effectiveDescPreview = effectiveDescFull ? effectiveDescFull.split('\n\n')[0] : '';
 
     const pri = priorityInfo(getEffectivePriority(key, s));
     let badges = '';
@@ -1060,7 +1068,7 @@ function renderDayView() {
             </div>
           </div>
           <div class="stop-badges">${badges}</div>
-          ${effectiveNote ? `<div class="stop-note">${linkify(effectiveNote)}</div>` : ''}
+          ${effectiveDescPreview ? `<div class="stop-desc-preview">${linkify(effectiveDescPreview)}</div>` : ''}
           <span class="stop-toggle" data-key="${key}">✏️ Nota personale</span>
           <div class="stop-personal" data-key="${key}">
             <textarea placeholder="Scrivi qui una nota, un'impressione, un promemoria...">${savedNote}</textarea>
@@ -1629,8 +1637,6 @@ function renderInfo() {
       ['🚿', 'Bagno', p.bagno],
       ['🍳', 'Cucina', p.cucina],
       ['🥐', 'Colazione', p.colazione],
-      ['🕗', 'Check-in', p.ci_orario],
-      ['🕓', 'Check-out', p.co_orario],
       ['🅿️', 'Parcheggio', p.parcheggio],
       ['📶', 'WiFi', p.wifi],
       ['📞', 'Contatto', p.contatto],
@@ -1648,6 +1654,7 @@ function renderInfo() {
         <div class="stay-location">📍 ${p.localita}</div>
         <div class="stay-sub">Notte ${p.notte} · ${p.checkin} → ${p.checkout}${p.costo ? ' · ' + fmtEuro(p.costo) : ''}</div>
         <a class="info-maps-link" href="${mapsUrl}" target="_blank" rel="noopener">🗺️ Apri in Google Maps</a>
+        ${buildCheckTimesHtml(p)}
         ${infoRows.length ? `<div class="stay-info-grid">${infoRows.map(([icon, label, val]) =>
           `<div class="stay-info-item"><span class="stay-info-icon">${icon}</span><span class="stay-info-label">${label}</span><span class="stay-info-val">${val}</span></div>`
         ).join('')}</div>` : ''}

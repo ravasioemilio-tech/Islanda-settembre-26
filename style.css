@@ -494,6 +494,16 @@ button {
   margin-top: 8px;
   line-height: 1.4;
 }
+.stop-desc-preview {
+  font-size: 0.83rem;
+  color: var(--ink);
+  margin-top: 8px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 
 .stop-toggle {
   margin-top: 8px;
@@ -1310,6 +1320,16 @@ button {
   padding: 6px 12px;
   text-decoration: none;
 }
+.stay-checktimes {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: var(--teal-light);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: var(--navy);
+}
+.stay-checktimes b { color: var(--teal); }
+#detailStayCheckTimes:empty { margin: 0; }
 .stay-info-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
