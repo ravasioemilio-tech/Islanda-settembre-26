@@ -208,6 +208,7 @@ if (typeof db !== 'undefined' && db) {
       const snapshot = await db.collection('sharedPhotos').get();
       const existing = {};
       snapshot.docs.forEach(d => { existing[d.id] = d.data(); });
+      const oldFormatIds = Object.keys(existing).filter(id => /^stop_\d+_\d+$/.test(id));
 
       const toWrite = [];
       TRIP_DATA.days.filter(day => DAYS_SAFE_FOR_KEY_MIGRATION.includes(day.id)).forEach(day => {
@@ -229,8 +230,10 @@ if (typeof db !== 'undefined' && db) {
         console.log(`Migrazione foto su Firestore completata: ${toWrite.length} foto spostate alla nuova chiave.`);
       }
       saveStore(STORE_KEYS.photoKeyMigrationDone, true);
+      alert(`🔧 Migrazione foto Firestore eseguita.\n\nDocumenti totali trovati: ${snapshot.docs.length}\nCon la vecchia chiave posizionale: ${oldFormatIds.length}\nSpostati alla nuova chiave: ${toWrite.length}\n\nSegnalami questi numeri se le foto ancora non si vedono.`);
     } catch (err) {
       console.warn('Migrazione foto su Firestore non riuscita (riproverà al prossimo avvio):', err);
+      alert(`⚠️ Migrazione foto Firestore fallita.\n\nErrore: ${err.code || err.message || err}\n\nSegnalami questo messaggio.`);
     }
   })();
 }
