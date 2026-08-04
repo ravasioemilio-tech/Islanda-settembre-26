@@ -25,6 +25,7 @@ const STORE_KEYS = {
   pernottamentoPhoto: 'iceland_pernottamento_photo_v1',
   pernottamentoNote: 'iceland_pernottamento_note_v1',
   pernottamentoFields: 'iceland_pernottamento_fields_v1',
+  keyMigrationDone: 'iceland_key_migration_v1',
 };
 
 function loadStore(key, fallback) {
@@ -79,6 +80,67 @@ let customStopsByDay = loadStore(STORE_KEYS.customStops, {}); // { "1": [ {key, 
 let pernottamentoPhoto = loadStore(STORE_KEYS.pernottamentoPhoto, {}); // { "1": "data:..." oppure "https://...", ... }
 let pernottamentoNote = loadStore(STORE_KEYS.pernottamentoNote, {}); // { "1": "testo libero", ... }
 let pernottamentoFieldOverrides = loadStore(STORE_KEYS.pernottamentoFields, {}); // { "1": {bagno:"Privato", cucina:"Sì", ...}, ... }
+
+// ---------------- migrazione una tantum: dalla vecchia chiave "posizione" alla nuova chiave "nome" ----------------
+// Fino a poco fa le modifiche (descrizioni, note, priorità, foto...) erano agganciate alla posizione
+// numerica di una tappa nel giorno. Se una tappa veniva aggiunta o tolta in mezzo alle altre, tutte le
+// modifiche successive si spostavano per sbaglio sulla tappa "vicina". Questa funzione recupera quello
+// che era già stato scritto, spostandolo alla nuova chiave stabile basata sul nome della tappa.
+//
+// IMPORTANTE: il recupero automatico è sicuro (e quindi attivo) SOLO per i giorni che non hanno mai
+// cambiato l'ordine/il numero delle tappe. Per i giorni 3, 6, 7, 8, 9 — ristrutturati più volte nel
+// tempo — non si può più risalire con certezza a quale posizione avesse una tappa quando il testo è
+// stato scritto: tentare comunque rischierebbe di agganciare un testo alla tappa SBAGLIATA, un errore
+// peggiore di lasciarlo semplicemente non recuperato. Per quei giorni non facciamo nulla in automatico.
+const DAYS_SAFE_FOR_KEY_MIGRATION = [0, 1, 2, 4, 5, 10, 11, 12, 13, 14];
+
+function migrateStopKeysToNameBased() {
+  if (loadStore(STORE_KEYS.keyMigrationDone, false)) return; // già fatto in passato, non rifare
+  if (typeof TRIP_DATA === 'undefined' || !TRIP_DATA.days) return;
+
+  const flatStores = [
+    [descriptionOverrides, STORE_KEYS.descriptionOverrides],
+    [noteOverrides, STORE_KEYS.noteOverrides],
+    [priorityOverrides, STORE_KEYS.priorityOverrides],
+    [photoOverrides, STORE_KEYS.photoOverrides],
+    [mapsOverrides, STORE_KEYS.mapsOverrides],
+    [durationOverrides, STORE_KEYS.durationOverrides],
+    [personalNotes, STORE_KEYS.notes],
+  ];
+
+  TRIP_DATA.days.filter(day => DAYS_SAFE_FOR_KEY_MIGRATION.includes(day.id)).forEach(day => {
+    (day.stops || []).forEach((s, idx) => {
+      if (!s.a) return;
+      const oldKey = `${day.id}_${idx}`;
+      const newKey = stopKeyByName(day.id, s.a);
+      if (oldKey === newKey) return;
+
+      flatStores.forEach(([store]) => {
+        if (Object.prototype.hasOwnProperty.call(store, oldKey) && !Object.prototype.hasOwnProperty.call(store, newKey)) {
+          store[newKey] = store[oldKey];
+        }
+      });
+
+      // doneStops: { [dayId]: [key1, key2, ...] }
+      const doneArr = doneStops[day.id];
+      if (Array.isArray(doneArr) && doneArr.includes(oldKey) && !doneArr.includes(newKey)) {
+        doneArr.push(newKey);
+      }
+
+      // hiddenStops: { [key]: true }
+      if (hiddenStops[oldKey] && !hiddenStops[newKey]) {
+        hiddenStops[newKey] = true;
+      }
+    });
+  });
+
+  flatStores.forEach(([store, storeKey]) => saveStore(storeKey, store));
+  saveStore(STORE_KEYS.done, doneStops);
+  saveStore(STORE_KEYS.hiddenStops, hiddenStops);
+  saveStore(STORE_KEYS.keyMigrationDone, true);
+  console.log('Migrazione delle chiavi (posizione → nome) completata per i giorni stabili.');
+}
+migrateStopKeysToNameBased();
 
 // ---------------- sincronizzazione foto condivise (Firestore, se disponibile) ----------------
 // Restiamo dentro Firestore (niente Firebase Storage): le foto sono già compresse abbastanza
@@ -203,8 +265,12 @@ function getEffectivePriority(key, s) {
 }
 
 // ---------------- tappe unite: originali + aggiunte dall'utente, con supporto nascondi ----------------
+// La chiave di ogni tappa originale è basata sul suo NOME (non sulla posizione): così se in futuro
+// aggiungo, tolgo o sposto una tappa in mezzo alle altre, tutte le modifiche già fatte (descrizioni,
+// note, priorità, foto...) restano agganciate al posto giusto invece di spostarsi per sbaglio.
+function stopKeyByName(dayId, name) { return `${dayId}::${name}`; }
 function getMergedStops(day) {
-  const base = day.stops.map((s, i) => ({ key: stopKey(day.id, i), stop: s, custom: false }));
+  const base = day.stops.map((s, i) => ({ key: stopKeyByName(day.id, s.a), stop: s, custom: false }));
   const custom = (customStopsByDay[day.id] || []).map(c => ({ key: c.key, stop: c, custom: true }));
   return base.concat(custom);
 }

@@ -304,6 +304,24 @@ carichi tantissime foto proprie potresti in teoria esaurire lo spazio
 riservato dal browser al sito. Se succede, l'app te lo segnala con un
 messaggio invece di fallire silenziosamente.
 
+## Le tue modifiche ora sono al sicuro da future ristrutturazioni
+
+Fino a poco fa, le modifiche a una tappa (descrizione, note, priorità,
+foto...) erano collegate alla sua **posizione numerica** nel giorno.
+Aggiungere o togliere una tappa in mezzo alle altre spostava tutte quelle
+successive, e le modifiche restavano attaccate alla posizione sbagliata.
+Ora sono collegate al **nome della tappa**: anche aggiungendo o
+riordinando altre tappe intorno, tutto quello che scrivi resta sempre
+agganciato al posto giusto.
+
+**Recupero automatico**: al primo avvio dopo questo aggiornamento, l'app
+recupera da sola le modifiche già fatte nei giorni che non sono mai stati
+ristrutturati (Arrivo, 1, 2, 4, 5, 10, 11, 12, 13, 14). Per i giorni 3, 6,
+7, 8 e 9 — cambiati più volte nel tempo — non è possibile risalire con
+certezza a dove fosse ogni tappa quando hai scritto il testo, quindi
+**quei giorni vanno controllati a mano**: qualcosa potrebbe essere ancora
+lì ma spostato sulla tappa vicina, altro potrebbe non esserci più.
+
 ## Modificare il nome della struttura
 
 Il nome della struttura è ora tra i campi modificabili di "🏨 Informazioni
