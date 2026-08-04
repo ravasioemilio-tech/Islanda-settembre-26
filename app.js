@@ -26,6 +26,7 @@ const STORE_KEYS = {
   pernottamentoNote: 'iceland_pernottamento_note_v1',
   pernottamentoFields: 'iceland_pernottamento_fields_v1',
   keyMigrationDone: 'iceland_key_migration_v1',
+  photoKeyMigrationDone: 'iceland_photo_key_migration_v1',
 };
 
 function loadStore(key, fallback) {
@@ -196,6 +197,42 @@ if (typeof db !== 'undefined' && db) {
   }, (err) => {
     console.warn('Firestore (foto) non raggiungibile, uso la copia locale:', err);
   });
+
+  // migrazione una tantum: le foto salvate su Firestore con la vecchia chiave posizionale
+  // (es. "stop_8_6") vengono copiate anche sotto la nuova chiave basata sul nome
+  // (es. "stop_8::Þrístapar"), così tornano visibili su tutti i dispositivi, non solo su questo.
+  (async function migrateFirestorePhotoKeys() {
+    if (loadStore(STORE_KEYS.photoKeyMigrationDone, false)) return;
+    if (typeof TRIP_DATA === 'undefined' || !TRIP_DATA.days) return;
+    try {
+      const snapshot = await db.collection('sharedPhotos').get();
+      const existing = {};
+      snapshot.docs.forEach(d => { existing[d.id] = d.data(); });
+
+      const toWrite = [];
+      TRIP_DATA.days.filter(day => DAYS_SAFE_FOR_KEY_MIGRATION.includes(day.id)).forEach(day => {
+        (day.stops || []).forEach((s, idx) => {
+          if (!s.a) return;
+          const oldId = `stop_${day.id}_${idx}`;
+          const newId = `stop_${stopKeyByName(day.id, s.a)}`;
+          if (oldId === newId) return;
+          if (existing[oldId] && !existing[newId]) {
+            toWrite.push([newId, existing[oldId]]);
+          }
+        });
+      });
+
+      if (toWrite.length) {
+        const batch = db.batch();
+        toWrite.forEach(([id, data]) => batch.set(db.collection('sharedPhotos').doc(id), data));
+        await batch.commit();
+        console.log(`Migrazione foto su Firestore completata: ${toWrite.length} foto spostate alla nuova chiave.`);
+      }
+      saveStore(STORE_KEYS.photoKeyMigrationDone, true);
+    } catch (err) {
+      console.warn('Migrazione foto su Firestore non riuscita (riproverà al prossimo avvio):', err);
+    }
+  })();
 }
 const PERNOTTAMENTO_EDITABLE_FIELDS = [
   ['struttura', '🏨', 'Nome struttura'],

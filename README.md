@@ -304,6 +304,13 @@ carichi tantissime foto proprie potresti in teoria esaurire lo spazio
 riservato dal browser al sito. Se succede, l'app te lo segnala con un
 messaggio invece di fallire silenziosamente.
 
+**Foto condivise su Firestore**: la stessa migrazione avviene anche per
+le foto salvate sul database condiviso — al primo dispositivo che apre
+l'app con questi file aggiornati e con connessione a Firestore, le foto
+dei giorni "sicuri" vengono spostate alla nuova chiave anche lì, e da
+quel momento tornano visibili su tutti i dispositivi (non serve rifarlo
+su ognuno).
+
 ## Le tue modifiche ora sono al sicuro da future ristrutturazioni
 
 Fino a poco fa, le modifiche a una tappa (descrizione, note, priorità,
