@@ -304,6 +304,14 @@ carichi tantissime foto proprie potresti in teoria esaurire lo spazio
 riservato dal browser al sito. Se succede, l'app te lo segnala con un
 messaggio invece di fallire silenziosamente.
 
+## Modificare il nome della struttura
+
+Il nome della struttura è ora tra i campi modificabili di "🏨 Informazioni
+struttura" (sia nella scheda dettagliata della tappa "X (pernottamento)"
+sia in Info → Pernottamenti): tocca "✏️ Modifica" e trovi "🏨 Nome
+struttura" come primo campo del form. Utile se una prenotazione cambia
+struttura o se vuoi correggere un nome.
+
 ## Modificare la priorità di una tappa
 
 Dentro la scheda dettagliata trovi ora anche **"🎯 Priorità"**: tre chip

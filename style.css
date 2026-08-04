@@ -1417,6 +1417,33 @@ button {
   color: var(--red);
   cursor: pointer;
 }
+.stay-photo-link-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.stay-photo-link-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 9px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  background: #fbfbf7;
+  color: var(--ink);
+}
+.stay-photo-link-save {
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 12px;
+  background: var(--teal);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
 .stay-note-section {
   margin-top: 12px;
   padding-top: 10px;

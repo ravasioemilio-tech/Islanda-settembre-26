@@ -136,13 +136,15 @@ if (typeof db !== 'undefined' && db) {
   });
 }
 const PERNOTTAMENTO_EDITABLE_FIELDS = [
+  ['struttura', '🏨', 'Nome struttura'],
   ['n_camere', '🛏', 'N. camere'],
   ['camere', '🛏', 'Camere (descrizione)'],
   ['bagno', '🚿', 'Bagno'],
   ['cucina', '🍳', 'Cucina'],
   ['colazione', '🥐', 'Colazione'],
-  ['ci_orario', '🕗', 'Check-in (orario)'],
-  ['co_orario', '🕓', 'Check-out (orario)'],
+  ['ci_orario', '🕗', 'Check-in dalle'],
+  ['ci_orario_fine', '🕗', 'Check-in fino alle'],
+  ['co_orario', '🕓', 'Check-out entro le'],
   ['parcheggio', '🅿️', 'Parcheggio'],
   ['wifi', '📶', 'WiFi'],
   ['contatto', '📞', 'Contatto'],
@@ -477,7 +479,15 @@ function renderStayInfoSection(day, s) {
 
 function buildCheckTimesHtml(p) {
   const parts = [];
-  if (p.ci_orario && String(p.ci_orario).trim()) parts.push(`🕗 Check-in: <b>dalle ${p.ci_orario}</b>`);
+  const ciStart = p.ci_orario && String(p.ci_orario).trim();
+  const ciEnd = p.ci_orario_fine && String(p.ci_orario_fine).trim();
+  if (ciStart && ciEnd) {
+    parts.push(`🕗 Check-in: <b>dalle ${ciStart} alle ${ciEnd}</b>`);
+  } else if (ciStart) {
+    parts.push(`🕗 Check-in: <b>dalle ${ciStart}</b>`);
+  } else if (ciEnd) {
+    parts.push(`🕗 Check-in: <b>fino alle ${ciEnd}</b>`);
+  }
   if (p.co_orario && String(p.co_orario).trim()) parts.push(`🕓 Check-out: <b>entro le ${p.co_orario}</b>`);
   if (!parts.length) return '';
   return `<div class="stay-checktimes">${parts.join(' &nbsp;·&nbsp; ')}</div>`;
@@ -487,6 +497,7 @@ function renderStayInfoGrid(rawP) {
   const p = getEffectivePernottamento(rawP);
   document.getElementById('detailStayCheckTimes').innerHTML = buildCheckTimesHtml(p);
   const rows = [
+    ['🏨', 'Struttura', p.struttura],
     ['🛏', 'Camere', p.n_camere ? `${p.n_camere} (${p.camere || ''})`.replace(' ()', '') : (p.camere || '')],
     ['🚿', 'Bagno', p.bagno],
     ['🍳', 'Cucina', p.cucina],
@@ -1660,9 +1671,13 @@ function renderInfo() {
         ).join('')}</div>` : ''}
         ${p.extra ? `<div class="stay-extra">${linkify(p.extra)}</div>` : ''}
         <div class="stay-photo-actions">
-          <label class="stay-photo-btn" for="stayPhotoFile_${key}">📷 ${photoSrc ? 'Cambia' : 'Aggiungi'} foto</label>
+          <label class="stay-photo-btn" for="stayPhotoFile_${key}">📷 ${photoSrc ? 'Cambia' : 'Aggiungi'} foto dal dispositivo</label>
           <input type="file" id="stayPhotoFile_${key}" data-key="${key}" accept="image/*" style="display:none">
           ${photoSrc ? `<span class="stay-photo-remove" data-key="${key}">🗑️ Rimuovi foto</span>` : ''}
+        </div>
+        <div class="stay-photo-link-row">
+          <input type="text" class="stay-photo-link-input" data-key="${key}" placeholder="...oppure incolla qui un link diretto a un'immagine" value="${(photoSrc && !photoSrc.startsWith('data:')) ? photoSrc.replace(/"/g, '&quot;') : ''}">
+          <button class="stay-photo-link-save" data-key="${key}">Salva link</button>
         </div>
         <div class="stay-note-section">
           <div class="stay-note-title">📝 Note</div>
@@ -1725,6 +1740,21 @@ function renderInfo() {
       saveStore(STORE_KEYS.pernottamentoPhoto, pernottamentoPhoto);
       renderInfo();
       deletePhotoValue('stay_' + key);
+    });
+  });
+
+  list.querySelectorAll('.stay-photo-link-save').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.key;
+      const input = list.querySelector(`.stay-photo-link-input[data-key="${key}"]`);
+      const val = input.value.trim();
+      if (!val) return;
+      pernottamentoPhoto[key] = val;
+      saveStore(STORE_KEYS.pernottamentoPhoto, pernottamentoPhoto);
+      renderInfo();
+      savePhotoValue('stay_' + key, val, (success) => {
+        if (!success) console.warn('Il link resta salvato solo su questo dispositivo per ora.');
+      });
     });
   });
 
