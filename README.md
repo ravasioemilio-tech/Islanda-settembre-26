@@ -321,11 +321,19 @@ documento stesso — così funziona con qualunque nome, senza eccezioni.
 
 ## Anche le modifiche alle tappe sono ora permanenti (Firestore)
 
-Descrizione, note pratiche, priorità, posizione Maps e orari personalizzati
-**di ogni tappa** passano anche loro da Firestore — stesso trattamento dei
+Descrizione, note pratiche, posizione Maps e orari personalizzati **di
+ogni tappa** passano anche loro da Firestore — stesso trattamento dei
 pernottamenti. Da ora, tutto il lavoro che farai su descrizioni/note/
-priorità/posizioni delle ~150 tappe **non può più andare perso** con una
-pulizia della cache, ed è automaticamente uguale su ogni dispositivo.
+posizioni delle ~150 tappe **non può più andare perso** con una pulizia
+della cache, ed è automaticamente uguale su ogni dispositivo.
+
+**La 🎯 Priorità fa eccezione, di proposito**: resta personale per ogni
+dispositivo, così ognuno dei 6 partecipanti può segnare le proprie
+preferenze in autonomia senza sovrascrivere quelle degli altri — è
+pensata per essere raccolta e confrontata con la funzione
+"📊 Raccogliere le priorità di tutti" in Info, non per essere già
+condivisa in tempo reale. Una volta decisa la versione definitiva insieme,
+si può eventualmente rendere condivisa anche quella.
 
 Come per i pernottamenti: se compare un avviso "questa modifica NON è
 stata condivisa", il dato resta comunque sul tuo dispositivo ma non si è

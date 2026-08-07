@@ -138,6 +138,9 @@ if (typeof db !== 'undefined' && db) {
 // Descrizione, note pratiche, priorità, posizione Maps e orari personalizzati di ogni tappa erano
 // rimasti solo locali. Stesso trattamento dei pernottamenti: passano da Firestore, un documento per
 // tappa (con la chiave vera come campo, non come nome del documento — niente più problemi con "/").
+// NB: la PRIORITÀ resta volutamente FUORI da questa sincronizzazione — ognuno la imposta in
+// autonomia sul proprio dispositivo, poi si raccolgono e si confrontano con l'apposita funzione
+// in Info. Solo dopo aver deciso la versione definitiva ha senso condividerla per tutti.
 let stopOverridesFirestoreConnected = false;
 function saveStopOverrideData(key) {
   if (typeof db === 'undefined' || !db) return;
@@ -146,7 +149,6 @@ function saveStopOverrideData(key) {
     key,
     description: Object.prototype.hasOwnProperty.call(descriptionOverrides, key) ? descriptionOverrides[key] : null,
     note: Object.prototype.hasOwnProperty.call(noteOverrides, key) ? noteOverrides[key] : null,
-    priority: Object.prototype.hasOwnProperty.call(priorityOverrides, key) ? priorityOverrides[key] : null,
     mapsPosition: Object.prototype.hasOwnProperty.call(mapsOverrides, key) ? mapsOverrides[key] : null,
     duration: Object.prototype.hasOwnProperty.call(durationOverrides, key) ? durationOverrides[key] : null,
   };
@@ -158,13 +160,12 @@ function saveStopOverrideData(key) {
 if (typeof db !== 'undefined' && db) {
   let stopOvFirstSync = true;
   db.collection('sharedStopOverrides').onSnapshot((snapshot) => {
-    const newDesc = {}, newNote = {}, newPri = {}, newMaps = {}, newDur = {};
+    const newDesc = {}, newNote = {}, newMaps = {}, newDur = {};
     snapshot.docs.forEach(doc => {
       const d = doc.data();
       if (!d || !d.key) return;
       if (d.description !== null && d.description !== undefined) newDesc[d.key] = d.description;
       if (d.note !== null && d.note !== undefined) newNote[d.key] = d.note;
-      if (d.priority !== null && d.priority !== undefined) newPri[d.key] = d.priority;
       if (d.mapsPosition !== null && d.mapsPosition !== undefined) newMaps[d.key] = d.mapsPosition;
       if (d.duration !== null && d.duration !== undefined) newDur[d.key] = d.duration;
     });
@@ -172,12 +173,13 @@ if (typeof db !== 'undefined' && db) {
     if (stopOvFirstSync) {
       stopOvFirstSync = false;
       // prima sincronizzazione: quello che c'era già solo in locale viene caricato su Firestore
+      // (la priorità resta esclusa di proposito, vedi nota sopra)
       const allKeys = new Set([
-        ...Object.keys(descriptionOverrides), ...Object.keys(noteOverrides), ...Object.keys(priorityOverrides),
+        ...Object.keys(descriptionOverrides), ...Object.keys(noteOverrides),
         ...Object.keys(mapsOverrides), ...Object.keys(durationOverrides),
       ]);
       allKeys.forEach(key => {
-        if (!(key in newDesc) && !(key in newNote) && !(key in newPri) && !(key in newMaps) && !(key in newDur)) {
+        if (!(key in newDesc) && !(key in newNote) && !(key in newMaps) && !(key in newDur)) {
           saveStopOverrideData(key);
         }
       });
@@ -185,12 +187,10 @@ if (typeof db !== 'undefined' && db) {
 
     descriptionOverrides = newDesc;
     noteOverrides = newNote;
-    priorityOverrides = newPri;
     mapsOverrides = newMaps;
     durationOverrides = newDur;
     saveStore(STORE_KEYS.descriptionOverrides, descriptionOverrides);
     saveStore(STORE_KEYS.noteOverrides, noteOverrides);
-    saveStore(STORE_KEYS.priorityOverrides, priorityOverrides);
     saveStore(STORE_KEYS.mapsOverrides, mapsOverrides);
     saveStore(STORE_KEYS.durationOverrides, durationOverrides);
     stopOverridesFirestoreConnected = true;
@@ -1102,7 +1102,7 @@ function renderPriorityChips(day, key, s, current) {
       saveStore(STORE_KEYS.priorityOverrides, priorityOverrides);
       renderPriorityChips(day, key, s, newPri);
       renderDayView(); // aggiorna il badge nella lista delle tappe
-      saveStopOverrideData(key);
+      // la priorità resta volutamente locale (non sincronizzata): vedi funzione "Raccogliere le priorità di tutti"
     });
   });
 }
