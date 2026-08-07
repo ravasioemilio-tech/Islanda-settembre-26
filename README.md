@@ -319,6 +319,31 @@ identificativo "reso sicuro" per il documento, mentre il nome vero (con
 tutti i suoi caratteri originali) resta salvato come campo dentro al
 documento stesso — così funziona con qualunque nome, senza eccezioni.
 
+## Anche le modifiche alle tappe sono ora permanenti (Firestore)
+
+Descrizione, note pratiche, priorità, posizione Maps e orari personalizzati
+**di ogni tappa** passano anche loro da Firestore — stesso trattamento dei
+pernottamenti. Da ora, tutto il lavoro che farai su descrizioni/note/
+priorità/posizioni delle ~150 tappe **non può più andare perso** con una
+pulizia della cache, ed è automaticamente uguale su ogni dispositivo.
+
+Come per i pernottamenti: se compare un avviso "questa modifica NON è
+stata condivisa", il dato resta comunque sul tuo dispositivo ma non si è
+salvato su Firestore in quel momento — segnalamelo se càpita spesso.
+
+## I dati dei pernottamenti sono ora permanenti (Firestore)
+
+Camere, bagno, cucina, colazione, orari, parcheggio, WiFi, contatto e note
+di ogni pernottamento **non sono più solo locali**: passano anche loro da
+Firestore, esattamente come spese e foto. Da ora, una pulizia della cache
+del browser **non li cancella più** — restano salvati per sempre e sono
+identici su ogni dispositivo che apre l'app.
+
+Se compare un avviso "questi dati NON sono stati condivisi" mentre
+compili, significa che il salvataggio su Firestore è fallito per quella
+singola modifica (es. connessione assente in quel momento): il dato resta
+comunque sul tuo dispositivo, ma segnalamelo se capita spesso.
+
 ## Le tue modifiche ora sono al sicuro da future ristrutturazioni
 
 Fino a poco fa, le modifiche a una tappa (descrizione, note, priorità,

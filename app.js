@@ -82,6 +82,135 @@ let pernottamentoPhoto = loadStore(STORE_KEYS.pernottamentoPhoto, {}); // { "1":
 let pernottamentoNote = loadStore(STORE_KEYS.pernottamentoNote, {}); // { "1": "testo libero", ... }
 let pernottamentoFieldOverrides = loadStore(STORE_KEYS.pernottamentoFields, {}); // { "1": {bagno:"Privato", cucina:"Sì", ...}, ... }
 
+// ---------------- sincronizzazione dati pernottamento (Firestore, se disponibile) ----------------
+// Camere/bagno/cucina/orari/note dei pernottamenti erano rimasti solo locali, a differenza di
+// spese e foto: una pulizia della cache li cancellava per sempre senza modo di recuperarli. Da qui
+// in avanti passano anche loro da Firestore, così restano permanenti e uguali su ogni dispositivo.
+let pernottamentoDataFirestoreConnected = false;
+function savePernottamentoData(notte) {
+  if (typeof db === 'undefined' || !db) return;
+  const docId = firestoreSafeDocId('pern_' + notte);
+  const payload = { notte: String(notte), fields: pernottamentoFieldOverrides[notte] || {}, note: pernottamentoNote[notte] || '' };
+  db.collection('sharedPernottamentoData').doc(docId).set(payload).catch((err) => {
+    console.warn('Salvataggio dati pernottamento su Firestore fallito:', err);
+    alert(`⚠️ Questi dati del pernottamento NON sono stati condivisi/salvati in modo permanente (restano solo su questo dispositivo, a rischio se pulisci la cache).\n\nErrore Firebase: ${err.code || err.message || err}\n\nSegnalalo così com'è.`);
+  });
+}
+if (typeof db !== 'undefined' && db) {
+  let pernFirstSync = true;
+  db.collection('sharedPernottamentoData').onSnapshot((snapshot) => {
+    const remoteFields = {};
+    const remoteNotes = {};
+    snapshot.docs.forEach(doc => {
+      const d = doc.data();
+      if (!d || d.notte === undefined) return;
+      remoteFields[d.notte] = d.fields || {};
+      remoteNotes[d.notte] = d.note || '';
+    });
+
+    if (pernFirstSync) {
+      pernFirstSync = false;
+      // prima sincronizzazione: quello che c'era già solo in locale viene caricato su Firestore
+      const allNotti = new Set([...Object.keys(pernottamentoFieldOverrides), ...Object.keys(pernottamentoNote)]);
+      allNotti.forEach(notte => {
+        if (!(notte in remoteFields) && !(notte in remoteNotes)) savePernottamentoData(notte);
+      });
+    }
+
+    pernottamentoFieldOverrides = remoteFields;
+    pernottamentoNote = remoteNotes;
+    saveStore(STORE_KEYS.pernottamentoFields, pernottamentoFieldOverrides);
+    saveStore(STORE_KEYS.pernottamentoNote, pernottamentoNote);
+    pernottamentoDataFirestoreConnected = true;
+
+    // aggiorna la vista aperta in questo momento, se pertinente
+    if (typeof currentView !== 'undefined' && currentView === 'info') renderInfo();
+    if (typeof currentStayNotte !== 'undefined' && currentStayNotte && typeof TRIP_DATA !== 'undefined') {
+      const rawP = TRIP_DATA.pernottamenti.find(x => String(x.notte) === currentStayNotte);
+      if (rawP) renderStayInfoGrid(rawP);
+    }
+  }, (err) => {
+    console.warn('Firestore (dati pernottamento) non raggiungibile, uso la copia locale:', err);
+  });
+}
+
+// ---------------- sincronizzazione modifiche alle tappe (Firestore, se disponibile) ----------------
+// Descrizione, note pratiche, priorità, posizione Maps e orari personalizzati di ogni tappa erano
+// rimasti solo locali. Stesso trattamento dei pernottamenti: passano da Firestore, un documento per
+// tappa (con la chiave vera come campo, non come nome del documento — niente più problemi con "/").
+let stopOverridesFirestoreConnected = false;
+function saveStopOverrideData(key) {
+  if (typeof db === 'undefined' || !db) return;
+  const docId = firestoreSafeDocId('stopov_' + key);
+  const payload = {
+    key,
+    description: Object.prototype.hasOwnProperty.call(descriptionOverrides, key) ? descriptionOverrides[key] : null,
+    note: Object.prototype.hasOwnProperty.call(noteOverrides, key) ? noteOverrides[key] : null,
+    priority: Object.prototype.hasOwnProperty.call(priorityOverrides, key) ? priorityOverrides[key] : null,
+    mapsPosition: Object.prototype.hasOwnProperty.call(mapsOverrides, key) ? mapsOverrides[key] : null,
+    duration: Object.prototype.hasOwnProperty.call(durationOverrides, key) ? durationOverrides[key] : null,
+  };
+  db.collection('sharedStopOverrides').doc(docId).set(payload).catch((err) => {
+    console.warn('Salvataggio modifica tappa su Firestore fallito:', err);
+    alert(`⚠️ Questa modifica NON è stata condivisa/salvata in modo permanente (resta solo su questo dispositivo, a rischio se pulisci la cache).\n\nErrore Firebase: ${err.code || err.message || err}\n\nSegnalalo così com'è.`);
+  });
+}
+if (typeof db !== 'undefined' && db) {
+  let stopOvFirstSync = true;
+  db.collection('sharedStopOverrides').onSnapshot((snapshot) => {
+    const newDesc = {}, newNote = {}, newPri = {}, newMaps = {}, newDur = {};
+    snapshot.docs.forEach(doc => {
+      const d = doc.data();
+      if (!d || !d.key) return;
+      if (d.description !== null && d.description !== undefined) newDesc[d.key] = d.description;
+      if (d.note !== null && d.note !== undefined) newNote[d.key] = d.note;
+      if (d.priority !== null && d.priority !== undefined) newPri[d.key] = d.priority;
+      if (d.mapsPosition !== null && d.mapsPosition !== undefined) newMaps[d.key] = d.mapsPosition;
+      if (d.duration !== null && d.duration !== undefined) newDur[d.key] = d.duration;
+    });
+
+    if (stopOvFirstSync) {
+      stopOvFirstSync = false;
+      // prima sincronizzazione: quello che c'era già solo in locale viene caricato su Firestore
+      const allKeys = new Set([
+        ...Object.keys(descriptionOverrides), ...Object.keys(noteOverrides), ...Object.keys(priorityOverrides),
+        ...Object.keys(mapsOverrides), ...Object.keys(durationOverrides),
+      ]);
+      allKeys.forEach(key => {
+        if (!(key in newDesc) && !(key in newNote) && !(key in newPri) && !(key in newMaps) && !(key in newDur)) {
+          saveStopOverrideData(key);
+        }
+      });
+    }
+
+    descriptionOverrides = newDesc;
+    noteOverrides = newNote;
+    priorityOverrides = newPri;
+    mapsOverrides = newMaps;
+    durationOverrides = newDur;
+    saveStore(STORE_KEYS.descriptionOverrides, descriptionOverrides);
+    saveStore(STORE_KEYS.noteOverrides, noteOverrides);
+    saveStore(STORE_KEYS.priorityOverrides, priorityOverrides);
+    saveStore(STORE_KEYS.mapsOverrides, mapsOverrides);
+    saveStore(STORE_KEYS.durationOverrides, durationOverrides);
+    stopOverridesFirestoreConnected = true;
+
+    // aggiorna la vista aperta in questo momento
+    if (typeof renderDayView === 'function' && typeof currentDayId !== 'undefined') renderDayView();
+    if (currentDetailDay && currentDetailKey) {
+      const s = getStopByKey(currentDetailDay, currentDetailKey);
+      if (s) {
+        renderDetailDescription(currentDetailKey, s);
+        renderDetailNote(currentDetailKey, s);
+        renderPriorityChips(currentDetailDay, currentDetailKey, s, getEffectivePriority(currentDetailKey, s));
+        renderDetailMapsLink(currentDetailDay, currentDetailKey, s);
+      }
+    }
+  }, (err) => {
+    console.warn('Firestore (modifiche tappe) non raggiungibile, uso la copia locale:', err);
+  });
+}
+
 // ---------------- migrazione una tantum: dalla vecchia chiave "posizione" alla nuova chiave "nome" ----------------
 // Fino a poco fa le modifiche (descrizioni, note, priorità, foto...) erano agganciate alla posizione
 // numerica di una tappa nel giorno. Se una tappa veniva aggiunta o tolta in mezzo alle altre, tutte le
@@ -651,6 +780,7 @@ document.getElementById('detailStaySave').addEventListener('click', () => {
   document.getElementById('detailStayEdit').classList.remove('open');
   document.getElementById('detailStayReset').style.display = '';
   if (currentView === 'info') renderInfo();
+  savePernottamentoData(currentStayNotte);
 });
 
 document.getElementById('detailStayReset').addEventListener('click', () => {
@@ -662,6 +792,7 @@ document.getElementById('detailStayReset').addEventListener('click', () => {
   renderStayInfoGrid(rawP);
   document.getElementById('detailStayReset').style.display = 'none';
   if (currentView === 'info') renderInfo();
+  savePernottamentoData(currentStayNotte);
 });
 
 async function openStopDetailModal(day, key) {
@@ -909,6 +1040,7 @@ document.getElementById('detailMapsSave').addEventListener('click', () => {
   renderDetailMapsLink(currentDetailDay, currentDetailKey, s);
   document.getElementById('detailMapsEdit').classList.remove('open');
   document.getElementById('detailMapsReset').style.display = '';
+  saveStopOverrideData(currentDetailKey);
 });
 
 document.getElementById('detailMapsReset').addEventListener('click', () => {
@@ -919,6 +1051,7 @@ document.getElementById('detailMapsReset').addEventListener('click', () => {
   renderDetailMapsLink(currentDetailDay, currentDetailKey, s);
   document.getElementById('detailMapsInput').value = getEffectiveMapsDestination(currentDetailDay, currentDetailKey, s);
   document.getElementById('detailMapsReset').style.display = 'none';
+  saveStopOverrideData(currentDetailKey);
 });
 
 function renderDetailNote(key, s) {
@@ -969,6 +1102,7 @@ function renderPriorityChips(day, key, s, current) {
       saveStore(STORE_KEYS.priorityOverrides, priorityOverrides);
       renderPriorityChips(day, key, s, newPri);
       renderDayView(); // aggiorna il badge nella lista delle tappe
+      saveStopOverrideData(key);
     });
   });
 }
@@ -990,6 +1124,7 @@ document.getElementById('detailDescSave').addEventListener('click', () => {
   document.getElementById('detailDescEdit').classList.remove('open');
   document.getElementById('detailDescReset').style.display = '';
   renderDayView(); // aggiorna eventuale visibilità pulsante "Scheda" nella lista
+  saveStopOverrideData(currentDetailKey);
 });
 
 document.getElementById('detailDescReset').addEventListener('click', () => {
@@ -999,6 +1134,7 @@ document.getElementById('detailDescReset').addEventListener('click', () => {
   const s = getStopByKey(currentDetailDay, currentDetailKey);
   renderDetailDescription(currentDetailKey, s);
   document.getElementById('detailDescReset').style.display = 'none';
+  saveStopOverrideData(currentDetailKey);
 });
 
 document.getElementById('detailNoteSave').addEventListener('click', () => {
@@ -1009,6 +1145,7 @@ document.getElementById('detailNoteSave').addEventListener('click', () => {
     renderStayNote(currentStayNotte);
     document.getElementById('detailNoteEdit').classList.remove('open');
     if (currentView === 'info') renderInfo();
+    savePernottamentoData(currentStayNotte);
     return;
   }
   if (!currentDetailDay || !currentDetailKey) return;
@@ -1019,6 +1156,7 @@ document.getElementById('detailNoteSave').addEventListener('click', () => {
   document.getElementById('detailNoteEdit').classList.remove('open');
   document.getElementById('detailNoteReset').style.display = '';
   renderDayView();
+  saveStopOverrideData(currentDetailKey);
 });
 
 document.getElementById('detailNoteReset').addEventListener('click', () => {
@@ -1030,6 +1168,7 @@ document.getElementById('detailNoteReset').addEventListener('click', () => {
   renderDetailNote(currentDetailKey, s);
   document.getElementById('detailNoteReset').style.display = 'none';
   renderDayView();
+  saveStopOverrideData(currentDetailKey);
 });
 
 document.getElementById('detailClose').addEventListener('click', () => {
@@ -1267,6 +1406,7 @@ function renderDayView() {
       durationOverrides[key] = { guida, visita };
       saveStore(STORE_KEYS.durationOverrides, durationOverrides);
       renderDayView();
+      saveStopOverrideData(key);
     });
   });
   list.querySelectorAll('.te-reset').forEach(btn => {
@@ -1275,6 +1415,7 @@ function renderDayView() {
       delete durationOverrides[key];
       saveStore(STORE_KEYS.durationOverrides, durationOverrides);
       renderDayView();
+      saveStopOverrideData(key);
     });
   });
 
@@ -1879,6 +2020,7 @@ function renderInfo() {
     ta.addEventListener('blur', () => {
       pernottamentoNote[ta.dataset.key] = ta.value;
       saveStore(STORE_KEYS.pernottamentoNote, pernottamentoNote);
+      savePernottamentoData(ta.dataset.key);
     });
   });
 }
