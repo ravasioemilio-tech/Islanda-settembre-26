@@ -1649,13 +1649,13 @@ function renderCardTopups() {
 
 // ---------------- raccolta priorità di gruppo (export/import/confronto) ----------------
 function getStopLabelByKey(key) {
-  const us = key.indexOf('_');
-  const dayId = parseInt(key.slice(0, us), 10);
-  const idx = parseInt(key.slice(us + 1), 10);
+  const sep = key.indexOf('::');
+  if (sep === -1) return { dayLabel: '?', dayOrder: 999, stopName: key }; // formato sconosciuto o vecchio (posizione)
+  const dayId = parseInt(key.slice(0, sep), 10);
+  const stopName = key.slice(sep + 2);
   const day = TRIP_DATA.days.find(d => d.id === dayId);
-  if (!day || !day.stops[idx]) return key;
-  const dayLabel = day.label || `Giorno ${day.id}`;
-  return { dayLabel, dayOrder: dayId, stopName: day.stops[idx].a || key };
+  const dayLabel = day ? (day.label || `Giorno ${day.id}`) : `Giorno ${dayId}`;
+  return { dayLabel, dayOrder: dayId, stopName };
 }
 
 function renderPriorityCollector() {
