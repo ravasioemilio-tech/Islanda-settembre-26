@@ -1650,12 +1650,13 @@ function renderCardTopups() {
 // ---------------- raccolta priorità di gruppo (export/import/confronto) ----------------
 function getStopLabelByKey(key) {
   const sep = key.indexOf('::');
-  if (sep === -1) return { dayLabel: '?', dayOrder: 999, stopName: key }; // formato sconosciuto o vecchio (posizione)
+  if (sep === -1) return { dayLabel: '?', dayOrder: 999, stopName: key, defaultPriority: null }; // formato sconosciuto o vecchio (posizione)
   const dayId = parseInt(key.slice(0, sep), 10);
   const stopName = key.slice(sep + 2);
   const day = TRIP_DATA.days.find(d => d.id === dayId);
   const dayLabel = day ? (day.label || `Giorno ${day.id}`) : `Giorno ${dayId}`;
-  return { dayLabel, dayOrder: dayId, stopName };
+  const stop = day ? day.stops.find(s => s.a === stopName) : null;
+  return { dayLabel, dayOrder: dayId, stopName, defaultPriority: stop ? (stop.priorita || null) : null };
 }
 
 function renderPriorityCollector() {
@@ -1702,6 +1703,8 @@ function renderPriorityCollector() {
           lastDay = r.dayLabel;
         }
         html += `<div class="pc-stop-row"><div class="pc-stop-name">${r.stopName}</div><div class="pc-choices">`;
+        const defInfo = r.defaultPriority ? priorityInfo(r.defaultPriority) : null;
+        html += `<span class="pc-choice-chip pc-default-chip" data-key="${r.key}" data-pri="${r.defaultPriority || ''}" title="Applica il valore di partenza">Partenza: ${defInfo ? defInfo.label : '—'}</span>`;
         collectedNames.forEach(name => {
           const p = collectedPriorities[name][r.key];
           if (!p) return;
@@ -1762,7 +1765,11 @@ function renderPriorityCollector() {
     chip.addEventListener('click', () => {
       const key = chip.dataset.key;
       const pri = chip.dataset.pri;
-      priorityOverrides[key] = pri;
+      if (chip.classList.contains('pc-default-chip')) {
+        delete priorityOverrides[key]; // "Partenza" = torna al valore di base, nessun override
+      } else {
+        priorityOverrides[key] = pri;
+      }
       saveStore(STORE_KEYS.priorityOverrides, priorityOverrides);
       renderPriorityCollector();
     });

@@ -130,11 +130,14 @@ decidere il programma definitivo, nella scheda **Info** trovi ora
    selezioni il file .json ricevuto — l'app lo legge e lo aggiunge al
    confronto (puoi caricarne quanti ne vuoi, uno alla volta).
 3. **Confronto tappa per tappa**: appare un elenco di tutte le tappe su cui
-   qualcuno ha espresso una preferenza diversa da quella di base, con un
-   chip colorato per ogni persona (es. "Marco: 🟢 Imperdibile",
-   "Giusi: 🔴 Da evitare"). **Toccando il chip di una persona applichi
-   subito quella scelta alle tue proprie tappe** — così decidi tu, tappa
-   per tappa, guardando cosa hanno scelto gli altri, e il programma
+   qualcuno ha espresso una preferenza diversa da quella di base. Ogni riga
+   mostra prima un chip grigio **"Partenza: ..."** (il valore originale,
+   quello impostato nell'Excel), poi un chip colorato per ogni persona che
+   l'ha cambiata (es. "Marco: 🟢 Imperdibile", "Giusi: 🔴 Da evitare").
+   **Toccando un chip qualsiasi applichi subito quella scelta alle tue
+   proprie tappe** (anche "Partenza", per tornare al valore originale) —
+   così decidi tu, tappa per tappa, guardando cosa hanno scelto gli altri
+   rispetto a cosa c'era già, e il programma
    definitivo si costruisce direttamente sul tuo dispositivo.
 
 Il pulsante "↺ Cancella tutte" nella sezione 2 rimuove tutte le risposte
