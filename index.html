@@ -58,6 +58,10 @@
   <div class="per-person-box" id="perPersonBox"></div>
   <div class="section-title">💰 Saldi tra chi ha anticipato di tasca propria</div>
   <div class="balances-box" id="balancesBox"></div>
+  <div class="settlement-add-row">
+    <button class="btn ghost" id="fabAddSettlement">💸 Registra un pagamento già fatto</button>
+  </div>
+  <div class="settlements-list" id="settlementsList"></div>
   <div class="section-title">Spese registrate</div>
   <div class="expense-list" id="expenseList"></div>
 </div>
@@ -130,6 +134,33 @@
     <div class="modal-actions">
       <button class="btn ghost" id="expCancel">Annulla</button>
       <button class="btn primary" id="expSave">Salva spesa</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="settlementModalBackdrop">
+  <div class="modal">
+    <h2>Registra un pagamento</h2>
+    <p class="settlement-hint">Usalo quando qualcuno ti ha già ridato (in contanti, bonifico, ecc.) quello che ti doveva — i saldi si aggiornano subito, senza aggiungerlo come spesa.</p>
+    <div class="field">
+      <label>Chi paga</label>
+      <select id="setFrom"></select>
+    </div>
+    <div class="field">
+      <label>A chi</label>
+      <select id="setTo"></select>
+    </div>
+    <div class="field">
+      <label>Importo (€)</label>
+      <input type="number" inputmode="decimal" step="0.01" id="setAmount" placeholder="0.00">
+    </div>
+    <div class="field">
+      <label>Nota (facoltativa)</label>
+      <input type="text" id="setNote" placeholder="es. bonifico del 3/09">
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="setCancel">Annulla</button>
+      <button class="btn primary" id="setSave">Salva pagamento</button>
     </div>
   </div>
 </div>

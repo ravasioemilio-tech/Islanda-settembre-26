@@ -414,6 +414,24 @@ restituito l'intero importo, diviso solo tra le persone rimaste
 selezionate. Nell'elenco spese, questa voce compare con l'etichetta
 "👥 diviso con N (nomi)".
 
+## Registrare i pagamenti già fatti (chi ti ha già ridato i soldi)
+
+Nella scheda **Budget**, sotto "💰 Saldi tra chi ha anticipato di tasca
+propria", trovi **"💸 Registra un pagamento già fatto"**. Usalo quando
+qualcuno ti ridà (in contanti, bonifico, ecc.) quello che ti doveva —
+**non è una spesa**, è solo l'aggiornamento del saldo tra due persone.
+
+Esempio pratico: paghi 1200€ per una cena di gruppo, ognuno degli altri 5
+ti deve 200€. Se 2 di loro te li ridanno e 3 no, registri 2 pagamenti
+("Giusi → Emilio, 200€" e "Marco → Emilio, 200€"): i saldi si aggiornano
+subito, e vedi chiaramente che restano ancora 3 persone che ti devono
+200€ a testa — invece di dover tenere il conto a mente o rischiare di
+dimenticarti chi ha già pagato.
+
+I pagamenti registrati compaiono in un elenco sotto ai saldi, con la
+possibilità di eliminarli (✕) se inseriti per errore. Sono sincronizzati
+tramite Firestore come le spese: permanenti e uguali su ogni dispositivo.
+
 ## Cassa comune con carta prepagata e saldi tra i partecipanti
 
 Nella scheda **Info** trovi "Partecipanti al viaggio" (6 nomi già inseriti,

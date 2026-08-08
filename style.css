@@ -867,6 +867,41 @@ button {
   font-size: 0.85rem;
   color: var(--ink);
 }
+.settlement-add-row {
+  margin: 10px 16px 0;
+}
+.settlement-add-row .btn.ghost {
+  width: 100%;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--teal);
+  background: #fff;
+  color: var(--teal);
+  font-weight: 800;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.settlements-list {
+  margin: 10px 16px 0;
+}
+.settlement-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 12px;
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+}
+.settlement-main { color: var(--ink); }
+.settlement-hint {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  margin: -6px 0 12px;
+  line-height: 1.4;
+}
 
 .empty-state {
   padding: 30px 20px;

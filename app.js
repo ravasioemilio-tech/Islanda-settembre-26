@@ -8,6 +8,7 @@ const STORE_KEYS = {
   done: 'iceland_done_stops_v1',
   notes: 'iceland_notes_v1',
   expenses: 'iceland_expenses_v1',
+  settlements: 'iceland_settlements_v1',
   startTimes: 'iceland_start_times_v1',
   durationOverrides: 'iceland_duration_overrides_v1',
   participants: 'iceland_participants_v1',
@@ -50,6 +51,7 @@ function saveStore(key, value) {
 let doneStops = loadStore(STORE_KEYS.done, {});
 let personalNotes = loadStore(STORE_KEYS.notes, {});
 let expenses = loadStore(STORE_KEYS.expenses, []); // cache locale, tenuta sincronizzata da Firestore quando disponibile
+let settlements = loadStore(STORE_KEYS.settlements, []); // [{id, from, to, amount, note, ts}] — pagamenti di saldo tra persone
 let startTimes = loadStore(STORE_KEYS.startTimes, {});             // { "1": "08:00", ... }
 let durationOverrides = loadStore(STORE_KEYS.durationOverrides, {}); // { "1_0": {guida:40, visita:30}, ... }
 let participants = loadStore(STORE_KEYS.participants,
@@ -66,6 +68,19 @@ if (typeof db !== 'undefined' && db) {
     if (typeof currentView !== 'undefined' && currentView === 'budget') renderBudget();
   }, (err) => {
     console.warn('Firestore non raggiungibile, uso la copia locale delle spese:', err);
+  });
+}
+
+// ---------------- sincronizzazione pagamenti di saldo (Firestore, se disponibile) ----------------
+let settlementsFirestoreConnected = false;
+if (typeof db !== 'undefined' && db) {
+  db.collection('settlements').orderBy('ts', 'asc').onSnapshot((snapshot) => {
+    settlementsFirestoreConnected = true;
+    settlements = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    saveStore(STORE_KEYS.settlements, settlements);
+    if (typeof currentView !== 'undefined' && currentView === 'budget') renderBudget();
+  }, (err) => {
+    console.warn('Firestore non raggiungibile, uso la copia locale dei pagamenti:', err);
   });
 }
 let descriptionOverrides = loadStore(STORE_KEYS.descriptionOverrides, {}); // { "1_0": "testo modificato dall'utente", ... }
@@ -562,6 +577,12 @@ function computeBalances() {
       net[e.paidBy] += e.amount;
       group.forEach(p => { net[p] -= share; });
     }
+  });
+  // pagamenti già effettuati tra le persone: riducono il debito corrispondente
+  settlements.forEach(st => {
+    if (!(st.from in net) || !(st.to in net)) return;
+    net[st.from] += st.amount; // chi paga deve meno (o gli spetta di più)
+    net[st.to] -= st.amount;   // chi riceve deve dare/ricevere di meno
   });
   return net; // positivo = deve ricevere, negativo = deve dare
 }
@@ -1535,6 +1556,7 @@ function renderBudget() {
     balHtml += '</div>';
   }
   balBox.innerHTML = balHtml;
+  renderSettlementsList();
 
   const list = document.getElementById('expenseList');
   if (expenses.length === 0) {
@@ -2215,9 +2237,93 @@ document.getElementById('expSave').addEventListener('click', () => {
   if (currentView === 'budget') renderBudget();
 });
 
-// ---------------- export / backup ----------------
+// ---------------- registrare un pagamento di saldo già effettuato ----------------
+const settlementModalBackdrop = document.getElementById('settlementModalBackdrop');
+
+function openSettlementModal() {
+  const fromSel = document.getElementById('setFrom');
+  const toSel = document.getElementById('setTo');
+  fromSel.innerHTML = participants.map(p => `<option value="${p}">${p}</option>`).join('');
+  toSel.innerHTML = participants.map(p => `<option value="${p}">${p}</option>`).join('');
+  if (participants.length > 1) toSel.selectedIndex = 1; // di default diverso dal primo, comodo
+  document.getElementById('setAmount').value = '';
+  document.getElementById('setNote').value = '';
+  settlementModalBackdrop.classList.add('open');
+  lockBodyScroll();
+}
+
+document.getElementById('fabAddSettlement').addEventListener('click', openSettlementModal);
+document.getElementById('setCancel').addEventListener('click', () => { settlementModalBackdrop.classList.remove('open'); unlockBodyScroll(); });
+settlementModalBackdrop.addEventListener('click', (e) => { if (e.target === settlementModalBackdrop) { settlementModalBackdrop.classList.remove('open'); unlockBodyScroll(); } });
+
+document.getElementById('setSave').addEventListener('click', () => {
+  const from = document.getElementById('setFrom').value;
+  const to = document.getElementById('setTo').value;
+  const amount = parseFloat(document.getElementById('setAmount').value);
+  if (!amount || amount <= 0) {
+    document.getElementById('setAmount').focus();
+    return;
+  }
+  if (from === to) {
+    alert('"Chi paga" e "A chi" devono essere due persone diverse.');
+    return;
+  }
+  const entry = {
+    from, to, amount,
+    note: document.getElementById('setNote').value.trim(),
+    ts: Date.now(),
+  };
+  if (typeof db !== 'undefined' && db) {
+    db.collection('settlements').add(entry).catch((err) => {
+      console.warn('Salvataggio pagamento su Firestore fallito, salvo solo in locale:', err);
+      entry.id = 's' + Date.now() + Math.random().toString(36).slice(2, 7);
+      settlements.push(entry);
+      saveStore(STORE_KEYS.settlements, settlements);
+      if (currentView === 'budget') renderBudget();
+    });
+  } else {
+    entry.id = 's' + Date.now() + Math.random().toString(36).slice(2, 7);
+    settlements.push(entry);
+    saveStore(STORE_KEYS.settlements, settlements);
+    if (currentView === 'budget') renderBudget();
+  }
+  settlementModalBackdrop.classList.remove('open');
+  unlockBodyScroll();
+  if (currentView === 'budget') renderBudget();
+});
+
+function renderSettlementsList() {
+  const box = document.getElementById('settlementsList');
+  if (!box) return;
+  if (settlements.length === 0) {
+    box.innerHTML = '';
+    return;
+  }
+  const sorted = [...settlements].sort((a, b) => b.ts - a.ts);
+  box.innerHTML = `<div class="section-title" style="padding-left:0;">💸 Pagamenti già registrati</div>` +
+    sorted.map(st => `
+      <div class="settlement-item">
+        <div class="settlement-main">${st.from} → ${st.to}: <b>${fmtEuro(st.amount)}</b>${st.note ? ' · ' + st.note : ''}</div>
+        <span class="del" data-id="${st.id}">✕</span>
+      </div>
+    `).join('');
+  box.querySelectorAll('.del').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.id;
+      if (typeof db !== 'undefined' && db && settlementsFirestoreConnected) {
+        db.collection('settlements').doc(id).delete().catch((err) => console.warn('Eliminazione pagamento fallita:', err));
+      } else {
+        settlements = settlements.filter(s => s.id !== id);
+        saveStore(STORE_KEYS.settlements, settlements);
+        renderBudget();
+      }
+    });
+  });
+}
+
+
 document.getElementById('exportBtn').addEventListener('click', () => {
-  const payload = { doneStops, personalNotes, expenses, participants, startTimes, durationOverrides, cardTopups, descriptionOverrides, noteOverrides, priorityOverrides, suggestions, photoOverrides, mapsOverrides, hiddenStops, customStopsByDay, pernottamentoPhoto, pernottamentoNote, pernottamentoFieldOverrides, exportedAt: new Date().toISOString() };
+  const payload = { doneStops, personalNotes, expenses, settlements, participants, startTimes, durationOverrides, cardTopups, descriptionOverrides, noteOverrides, priorityOverrides, suggestions, photoOverrides, mapsOverrides, hiddenStops, customStopsByDay, pernottamentoPhoto, pernottamentoNote, pernottamentoFieldOverrides, exportedAt: new Date().toISOString() };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -2250,6 +2356,7 @@ document.getElementById('importBackupFile').addEventListener('change', (e) => {
       ['doneStops', STORE_KEYS.done],
       ['personalNotes', STORE_KEYS.notes],
       ['expenses', STORE_KEYS.expenses],
+      ['settlements', STORE_KEYS.settlements],
       ['participants', STORE_KEYS.participants],
       ['startTimes', STORE_KEYS.startTimes],
       ['durationOverrides', STORE_KEYS.durationOverrides],
@@ -2276,6 +2383,7 @@ document.getElementById('importBackupFile').addEventListener('change', (e) => {
     doneStops = loadStore(STORE_KEYS.done, {});
     personalNotes = loadStore(STORE_KEYS.notes, {});
     expenses = loadStore(STORE_KEYS.expenses, []);
+    settlements = loadStore(STORE_KEYS.settlements, []);
     participants = loadStore(STORE_KEYS.participants, participants);
     startTimes = loadStore(STORE_KEYS.startTimes, {});
     durationOverrides = loadStore(STORE_KEYS.durationOverrides, {});
