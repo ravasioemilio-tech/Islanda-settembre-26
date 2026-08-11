@@ -26,9 +26,11 @@
       <button class="navbtn" data-view="budget"><span class="ic">💶</span>Budget</button>
       <button class="navbtn" data-view="info"><span class="ic">🏠</span>Info</button>
     </div>
+    <button class="btn ghost search-open-btn" id="searchOpenDesktop">🔍 Cerca una località</button>
     <button class="btn primary desktop-add-btn" id="fabAddExpenseDesktop">＋ Aggiungi spesa</button>
   </div>
   <div class="mobile-add-bar">
+    <button class="search-open-btn-mobile" id="searchOpenMobile">🔍</button>
     <button class="mobile-add-btn" id="fabAddExpenseTop">＋ Aggiungi spesa</button>
   </div>
   <div class="daytabs" id="dayTabs"></div>
@@ -135,6 +137,16 @@
       <button class="btn ghost" id="expCancel">Annulla</button>
       <button class="btn primary" id="expSave">Salva spesa</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="searchModalBackdrop">
+  <div class="modal search-modal">
+    <div class="search-modal-header">
+      <input type="text" id="searchInput" placeholder="Cerca una località per nome...">
+      <button class="detail-close" id="searchClose">✕</button>
+    </div>
+    <div class="search-results" id="searchResults"></div>
   </div>
 </div>
 

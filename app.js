@@ -23,6 +23,7 @@ const STORE_KEYS = {
   mapsOverrides: 'iceland_maps_overrides_v1',
   hiddenStops: 'iceland_hidden_stops_v1',
   customStops: 'iceland_custom_stops_v1',
+  stopOrder: 'iceland_stop_order_v1',
   pernottamentoPhoto: 'iceland_pernottamento_photo_v1',
   pernottamentoNote: 'iceland_pernottamento_note_v1',
   pernottamentoFields: 'iceland_pernottamento_fields_v1',
@@ -93,6 +94,42 @@ let photoOverrides = loadStore(STORE_KEYS.photoOverrides, {}); // { "1_0": "http
 let mapsOverrides = loadStore(STORE_KEYS.mapsOverrides, {}); // { "1_0": "64.1234, -21.5678" oppure un link Google Maps }
 let hiddenStops = loadStore(STORE_KEYS.hiddenStops, {}); // { "1_0": true, "custom_1_abc": true, ... }
 let customStopsByDay = loadStore(STORE_KEYS.customStops, {}); // { "1": [ {key, da, a, priorita, guida, km, visita, parcheggio, ingresso, note} ] }
+let stopOrderByDay = loadStore(STORE_KEYS.stopOrder, {}); // { "1": ["1::Þórufoss", "1::Brúarfoss", ...] }
+
+// ---------------- sincronizzazione ordine tappe (Firestore, se disponibile) ----------------
+// Un documento per giorno, con l'elenco delle chiavi nell'ordine scelto: così il riordino fatto
+// da chiunque (con trascinamento) diventa permanente e uguale su tutti i dispositivi.
+function saveStopOrder(dayId) {
+  if (typeof db === 'undefined' || !db) return;
+  const docId = firestoreSafeDocId('order_' + dayId);
+  db.collection('sharedStopOrder').doc(docId).set({ dayId: String(dayId), order: stopOrderByDay[dayId] || [] }).catch((err) => {
+    console.warn('Salvataggio ordine tappe su Firestore fallito:', err);
+    alert(`⚠️ Il nuovo ordine NON è stato condiviso/salvato in modo permanente (resta solo su questo dispositivo).\n\nErrore Firebase: ${err.code || err.message || err}\n\nSegnalalo così com'è.`);
+  });
+}
+let stopOrderFirestoreConnected = false;
+if (typeof db !== 'undefined' && db) {
+  let orderFirstSync = true;
+  db.collection('sharedStopOrder').onSnapshot((snapshot) => {
+    const remote = {};
+    snapshot.docs.forEach(doc => {
+      const d = doc.data();
+      if (d && d.dayId !== undefined) remote[d.dayId] = d.order || [];
+    });
+    if (orderFirstSync) {
+      orderFirstSync = false;
+      Object.keys(stopOrderByDay).forEach(dayId => {
+        if (!(dayId in remote)) saveStopOrder(dayId);
+      });
+    }
+    stopOrderByDay = remote;
+    saveStore(STORE_KEYS.stopOrder, stopOrderByDay);
+    stopOrderFirestoreConnected = true;
+    if (typeof renderDayView === 'function' && typeof currentDayId !== 'undefined') renderDayView();
+  }, (err) => {
+    console.warn('Firestore (ordine tappe) non raggiungibile, uso la copia locale:', err);
+  });
+}
 let pernottamentoPhoto = loadStore(STORE_KEYS.pernottamentoPhoto, {}); // { "1": "data:..." oppure "https://...", ... }
 let pernottamentoNote = loadStore(STORE_KEYS.pernottamentoNote, {}); // { "1": "testo libero", ... }
 let pernottamentoFieldOverrides = loadStore(STORE_KEYS.pernottamentoFields, {}); // { "1": {bagno:"Privato", cucina:"Sì", ...}, ... }
@@ -458,7 +495,19 @@ function stopKeyByName(dayId, name) { return `${dayId}::${name}`; }
 function getMergedStops(day) {
   const base = day.stops.map((s, i) => ({ key: stopKeyByName(day.id, s.a), stop: s, custom: false }));
   const custom = (customStopsByDay[day.id] || []).map(c => ({ key: c.key, stop: c, custom: true }));
-  return base.concat(custom);
+  const merged = base.concat(custom);
+
+  const order = stopOrderByDay[day.id];
+  if (order && order.length) {
+    const byKey = {};
+    merged.forEach(item => { byKey[item.key] = item; });
+    const ordered = [];
+    order.forEach(k => { if (byKey[k]) { ordered.push(byKey[k]); delete byKey[k]; } });
+    // eventuali tappe nuove non ancora presenti nell'ordine salvato vanno in fondo
+    Object.values(byKey).forEach(item => ordered.push(item));
+    return ordered;
+  }
+  return merged;
 }
 function isStopHidden(key) {
   return !!hiddenStops[key];
@@ -1331,6 +1380,10 @@ function renderDayView() {
     card.innerHTML = `
       <div class="stop-top">
         <div class="stop-check ${isDone ? 'checked' : ''}" data-key="${key}">${isDone ? '✓' : ''}</div>
+        <div class="stop-move">
+          <span class="stop-move-btn stop-move-up" data-key="${key}" title="Sposta su">▲</span>
+          <span class="stop-move-btn stop-move-down" data-key="${key}" title="Sposta giù">▼</span>
+        </div>
         <div class="stop-main">
           <div class="stop-title-row">
             <div class="stop-title stop-title-clickable" data-key="${key}">${displayIdx + 1}. ${s.a || ''}</div>
@@ -1455,6 +1508,30 @@ function renderDayView() {
         renderDayView();
       }
     });
+  });
+
+  // wire spostamento su/giù (riordino manuale delle tappe)
+  function moveStop(key, direction) {
+    // parte dall'ordine attuale VISIBILE (quello che l'utente vede e vuole riordinare),
+    // poi lo salva come nuovo ordine completo del giorno
+    const currentOrder = visible.map(v => v.key);
+    const idx = currentOrder.indexOf(key);
+    const swapWith = idx + direction;
+    if (idx === -1 || swapWith < 0 || swapWith >= currentOrder.length) return;
+    [currentOrder[idx], currentOrder[swapWith]] = [currentOrder[swapWith], currentOrder[idx]];
+    // le tappe nascoste non comparivano in "visible": le riaggiungo in fondo, nel loro ordine originale,
+    // così restano al loro posto senza sparire dall'elenco salvato
+    const hiddenKeys = merged.map(m => m.key).filter(k => !currentOrder.includes(k));
+    stopOrderByDay[day.id] = currentOrder.concat(hiddenKeys);
+    saveStore(STORE_KEYS.stopOrder, stopOrderByDay);
+    renderDayView();
+    saveStopOrder(day.id);
+  }
+  list.querySelectorAll('.stop-move-up').forEach(el => {
+    el.addEventListener('click', () => moveStop(el.dataset.key, -1));
+  });
+  list.querySelectorAll('.stop-move-down').forEach(el => {
+    el.addEventListener('click', () => moveStop(el.dataset.key, 1));
   });
 }
 
@@ -2070,6 +2147,79 @@ function switchView(view) {
 
 document.querySelectorAll('.navbtn').forEach(btn => {
   btn.addEventListener('click', () => switchView(btn.dataset.view));
+});
+
+// ---------------- ricerca globale delle località ----------------
+const searchModalBackdrop = document.getElementById('searchModalBackdrop');
+
+function openSearchModal() {
+  document.getElementById('searchInput').value = '';
+  renderSearchResults('');
+  searchModalBackdrop.classList.add('open');
+  lockBodyScroll();
+  setTimeout(() => document.getElementById('searchInput').focus(), 50);
+}
+function closeSearchModal() {
+  searchModalBackdrop.classList.remove('open');
+  unlockBodyScroll();
+}
+document.getElementById('searchOpenDesktop').addEventListener('click', openSearchModal);
+document.getElementById('searchOpenMobile').addEventListener('click', openSearchModal);
+document.getElementById('searchClose').addEventListener('click', closeSearchModal);
+searchModalBackdrop.addEventListener('click', (e) => { if (e.target === searchModalBackdrop) closeSearchModal(); });
+
+function normalizeForSearch(s) {
+  return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // ignora maiuscole/accenti
+}
+
+function renderSearchResults(query) {
+  const box = document.getElementById('searchResults');
+  const q = normalizeForSearch(query.trim());
+
+  const allStops = [];
+  TRIP_DATA.days.forEach(day => {
+    getMergedStops(day).forEach(({ key, stop }) => {
+      if (!stop.a) return;
+      allStops.push({ key, day, name: stop.a, hidden: isStopHidden(key) });
+    });
+  });
+
+  const results = q
+    ? allStops.filter(s => normalizeForSearch(s.name).includes(q))
+    : [];
+
+  if (!q) {
+    box.innerHTML = `<div class="search-hint">Scrivi il nome di una località per trovarla in qualsiasi giorno, senza doverli scorrere uno a uno.</div>`;
+    return;
+  }
+  if (results.length === 0) {
+    box.innerHTML = `<div class="search-hint">Nessuna località trovata per "${query}".</div>`;
+    return;
+  }
+  box.innerHTML = results.slice(0, 40).map(r => `
+    <div class="search-result-row" data-key="${r.key}" data-day="${r.day.id}">
+      <span class="search-result-day">${r.day.label || 'Giorno ' + r.day.id}</span>
+      <span class="search-result-name">${r.name}${r.hidden ? ' <em>(nascosta)</em>' : ''}</span>
+    </div>
+  `).join('');
+
+  box.querySelectorAll('.search-result-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const dayId = parseInt(row.dataset.day, 10);
+      const key = row.dataset.key;
+      closeSearchModal();
+      currentDayId = dayId;
+      switchView('days');
+      renderDayTabs();
+      renderDayView();
+      const day = TRIP_DATA.days.find(d => d.id === dayId);
+      setTimeout(() => openStopDetailModal(day, key), 150);
+    });
+  });
+}
+
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  renderSearchResults(e.target.value);
 });
 
 // ---------------- expense modal ----------------

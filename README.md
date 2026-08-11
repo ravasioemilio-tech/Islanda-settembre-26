@@ -322,6 +322,26 @@ identificativo "reso sicuro" per il documento, mentre il nome vero (con
 tutti i suoi caratteri originali) resta salvato come campo dentro al
 documento stesso — così funziona con qualunque nome, senza eccezioni.
 
+## Cercare una località senza scorrere giorno per giorno
+
+In alto trovi ora **"🔍 Cerca una località"** (icona lente sul telefono, testo esteso sul desktop): scrivi anche solo qualche lettera del nome e vedi subito i risultati da **tutti i giorni**, non solo quello aperto — ignora maiuscole e accenti. Tocca un risultato: ti porta dritto al giorno giusto e apre subito la scheda di quella tappa.
+
+## Riordinare le tappe di un giorno (imperdibili prima, facoltative dove vuoi)
+
+Su ogni tappa trovi ora due frecce **▲▼** accanto al pallino di spunta:
+spostano la tappa su o giù nell'ordine del giorno. Utile per mettere in
+fila prima le 🟢 Imperdibili e poi decidere tu, una per una, in che punto
+inserire le 🟡 Facoltative rispetto al percorso — gli orari si ricalcolano
+automaticamente col nuovo ordine, esattamente come quando nascondi una
+tappa. Il nuovo ordine è sincronizzato tramite Firestore: resta permanente
+e uguale su ogni dispositivo.
+
+**Nota**: ho scelto le frecce invece del trascinamento perché il "drag"
+vero è spesso poco affidabile su telefono/tablet dentro un browser (tocchi
+e scroll della pagina tendono a confliggere). Le frecce ottengono lo
+stesso risultato in modo più solido — se dopo averle provate preferisci
+comunque il trascinamento, fammelo sapere e vediamo come implementarlo.
+
 ## Anche le modifiche alle tappe sono ora permanenti (Firestore)
 
 Descrizione, note pratiche, posizione Maps e orari personalizzati **di
