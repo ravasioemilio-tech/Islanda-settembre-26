@@ -336,6 +336,14 @@ automaticamente col nuovo ordine, esattamente come quando nascondi una
 tappa. Il nuovo ordine è sincronizzato tramite Firestore: resta permanente
 e uguale su ogni dispositivo.
 
+**⚠️ Tempo di guida da ricontrollare**: gli orari si ricalcolano da soli,
+ma il **tempo di guida** (i minuti "🚗") resta quello calcolato per il
+tragitto originale — l'app non sa calcolare distanze reali tra due punti.
+Quando la tappa immediatamente precedente cambia (per un riordino, o
+perché quella precedente è stata nascosta), compare un'icona **⚠️** accanto
+al tempo di guida di quella tappa: è il segnale per aprire "✏️ orari" e
+correggere il tempo a mano, controllando la distanza reale su Google Maps.
+
 **Nota**: ho scelto le frecce invece del trascinamento perché il "drag"
 vero è spesso poco affidabile su telefono/tablet dentro un browser (tocchi
 e scroll della pagina tendono a confliggere). Le frecce ottengono lo

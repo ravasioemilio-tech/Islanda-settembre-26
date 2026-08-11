@@ -492,6 +492,17 @@ function getEffectivePriority(key, s) {
 // aggiungo, tolgo o sposto una tappa in mezzo alle altre, tutte le modifiche già fatte (descrizioni,
 // note, priorità, foto...) restano agganciate al posto giusto invece di spostarsi per sbaglio.
 function stopKeyByName(dayId, name) { return `${dayId}::${name}`; }
+// Ordine "naturale" (quello originale, senza tener conto di eventuali spostamenti con le frecce):
+// serve per capire quale tappa veniva PRIMA di una certa tappa nell'itinerario di partenza, e quindi
+// se il tempo di guida mostrato (calcolato per quel tragitto) è ancora valido dopo un riordino.
+function getNaturalPredecessorMap(day) {
+  const base = day.stops.map((s) => stopKeyByName(day.id, s.a));
+  const custom = (customStopsByDay[day.id] || []).map(c => c.key);
+  const naturalOrder = base.concat(custom);
+  const map = {};
+  naturalOrder.forEach((key, i) => { map[key] = i > 0 ? naturalOrder[i - 1] : null; });
+  return map;
+}
 function getMergedStops(day) {
   const base = day.stops.map((s, i) => ({ key: stopKeyByName(day.id, s.a), stop: s, custom: false }));
   const custom = (customStopsByDay[day.id] || []).map(c => ({ key: c.key, stop: c, custom: true }));
@@ -1284,6 +1295,7 @@ function renderDayView() {
   const chain = computeDayChain(day);
   const visible = merged.filter(({ key }) => !isStopHidden(key));
   const hiddenList = merged.filter(({ key }) => isStopHidden(key));
+  const naturalPred = getNaturalPredecessorMap(day);
   const firstDep = visible.length ? chain[visible[0].key].partenza : parseHM(getStartTime(day.id));
   const lastArr = visible.length ? chain[visible[visible.length - 1].key].arrivo : firstDep;
 
@@ -1359,10 +1371,20 @@ function renderDayView() {
     const effectiveDescFull = getEffectiveDescription(key, s);
     const effectiveDescPreview = effectiveDescFull ? effectiveDescFull.split('\n\n')[0] : '';
 
+    // se la tappa immediatamente precedente non è più quella originale (per un riordino con le
+    // frecce, o perché la precedente è stata nascosta/eliminata), il tempo di guida mostrato è
+    // ancora quello calcolato per il vecchio tragitto: segnalarlo per ricordare di ricontrollarlo
+    const actualPredKey = displayIdx > 0 ? visible[displayIdx - 1].key : null;
+    const guidaPotenzialmenteObsoleta = guidaMin > 0 && (naturalPred[key] || null) !== actualPredKey;
+
     const pri = priorityInfo(getEffectivePriority(key, s));
     let badges = '';
     if (pri) badges += `<span class="badge ${pri.cls}">${pri.label}</span>`;
-    if (guidaMin > 0) badges += `<span class="badge time">🚗 ${formatDurationMin(guidaMin)}${s.km ? ' · ' + s.km + ' km' : ''}</span>`;
+    if (guidaMin > 0) {
+      const warnSpan = guidaPotenzialmenteObsoleta
+        ? `<span class="badge-warn" title="Tappa precedente cambiata: questo tempo di guida potrebbe non essere più giusto, ricontrollalo">⚠️</span>` : '';
+      badges += `<span class="badge time">🚗 ${formatDurationMin(guidaMin)}${s.km ? ' · ' + s.km + ' km' : ''}${warnSpan}</span>`;
+    }
     if (visitaMin > 0) badges += `<span class="badge time">⏱ ${formatDurationMin(visitaMin)}</span>`;
     if (s.parcheggio !== null && s.parcheggio !== undefined) {
       badges += s.parcheggio > 0

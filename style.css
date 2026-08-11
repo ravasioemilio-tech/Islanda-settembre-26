@@ -508,6 +508,10 @@ button {
 .badge.time { background: var(--teal-light); color: var(--teal); }
 .badge.cost { background: #f1eee4; color: #7a6a3d; }
 .badge.free { background: var(--green-bg); color: var(--green); }
+.badge-warn {
+  margin-left: 4px;
+  cursor: help;
+}
 
 .stop-note {
   font-size: 0.82rem;
