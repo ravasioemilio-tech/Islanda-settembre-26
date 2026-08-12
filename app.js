@@ -9,6 +9,7 @@ const STORE_KEYS = {
   notes: 'iceland_notes_v1',
   expenses: 'iceland_expenses_v1',
   settlements: 'iceland_settlements_v1',
+  customSections: 'iceland_custom_sections_v1',
   startTimes: 'iceland_start_times_v1',
   durationOverrides: 'iceland_duration_overrides_v1',
   participants: 'iceland_participants_v1',
@@ -82,6 +83,20 @@ if (typeof db !== 'undefined' && db) {
     if (typeof currentView !== 'undefined' && currentView === 'budget') renderBudget();
   }, (err) => {
     console.warn('Firestore non raggiungibile, uso la copia locale dei pagamenti:', err);
+  });
+}
+
+// ---------------- sincronizzazione sezioni di note personalizzate (Firestore, se disponibile) ----------------
+let customSections = loadStore(STORE_KEYS.customSections, []); // [{id, title, text, ts}]
+let customSectionsFirestoreConnected = false;
+if (typeof db !== 'undefined' && db) {
+  db.collection('customSections').orderBy('ts', 'asc').onSnapshot((snapshot) => {
+    customSectionsFirestoreConnected = true;
+    customSections = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    saveStore(STORE_KEYS.customSections, customSections);
+    if (typeof currentView !== 'undefined' && currentView === 'utili') renderUtili();
+  }, (err) => {
+    console.warn('Firestore non raggiungibile, uso la copia locale delle note personalizzate:', err);
   });
 }
 let descriptionOverrides = loadStore(STORE_KEYS.descriptionOverrides, {}); // { "1_0": "testo modificato dall'utente", ... }
@@ -659,11 +674,13 @@ function computeCardBalance() {
 // ---------------- riepilogo per persona: totale spese personali + contatore spese registrate ----------------
 function computePerPersonSummary() {
   const summary = {};
-  participants.forEach(p => { summary[p] = { personalTotal: 0, count: 0 }; });
+  participants.forEach(p => { summary[p] = { personalTotal: 0, sharedTotal: 0, totalPaid: 0, count: 0 }; });
   expenses.forEach(e => {
     if (!e.paidBy || !(e.paidBy in summary)) return; // spese pagate con la carta comune non hanno un "paidBy"
     summary[e.paidBy].count += 1;
+    summary[e.paidBy].totalPaid += e.amount;
     if (e.shared === false) summary[e.paidBy].personalTotal += e.amount;
+    else summary[e.paidBy].sharedTotal += e.amount;
   });
   return summary;
 }
@@ -1626,8 +1643,9 @@ function renderBudget() {
       <div class="per-person-row">
         <span class="pp-name">${p}</span>
         <span class="pp-count" title="Numero di spese registrate a suo nome">🧾 ${s.count}</span>
-        <span class="pp-total">${fmtEuro(s.personalTotal)} <small>personali</small></span>
+        <span class="pp-total pp-total-main">${fmtEuro(s.totalPaid)} <small>totale</small></span>
       </div>
+      <div class="pp-breakdown">${fmtEuro(s.personalTotal)} personali · ${fmtEuro(s.sharedTotal)} comuni</div>
     `;
   });
   ppHtml += '</div>';
@@ -2159,12 +2177,136 @@ function switchView(view) {
   document.getElementById('view-days').style.display = view === 'days' ? '' : 'none';
   document.getElementById('view-budget').style.display = view === 'budget' ? '' : 'none';
   document.getElementById('view-info').style.display = view === 'info' ? '' : 'none';
-  document.getElementById('fabAddExpenseTop').style.display = view === 'info' ? 'none' : '';
+  document.getElementById('view-utili').style.display = view === 'utili' ? '' : 'none';
+  document.getElementById('fabAddExpenseTop').style.display = (view === 'info' || view === 'utili') ? 'none' : '';
   document.querySelectorAll('.navbtn').forEach(b => {
     b.classList.toggle('active', b.dataset.view === view);
   });
   if (view === 'budget') renderBudget();
   if (view === 'info') renderInfo();
+  if (view === 'utili') renderUtili();
+}
+
+// ---------------- vista "Utili": link curati + note personalizzate a sezioni ----------------
+const USEFUL_LINKS = [
+  { icon: '🌌', title: 'Previsioni aurora boreale', url: 'https://en.vedur.is/weather/forecasts/aurora/', desc: 'Mappa nuvolosità + indice KP, ufficiale Veðurstofa Íslands.' },
+  { icon: '🌤️', title: 'Meteo Islanda', url: 'https://en.vedur.is/', desc: 'Previsioni ufficiali, avvisi di vento e maltempo.' },
+  { icon: '🛣️', title: 'Condizioni delle strade', url: 'https://www.road.is/', desc: 'Stato in tempo reale di ogni strada, chiusure, webcam (anche umferdin.is).' },
+  { icon: '🆘', title: 'SafeTravel — piano di viaggio', url: 'https://safetravel.is/', desc: 'Avvisi di sicurezza, registra il tuo percorso giornaliero, link all\'app 112.' },
+  { icon: '🅿️', title: 'Parcheggi — app Parka', url: 'https://parka.is/', desc: 'App più diffusa per pagare i parcheggi in tutta l\'Islanda.' },
+  { icon: '🅿️', title: 'Parcheggi — app EasyPark', url: 'https://easypark.is/', desc: 'Alternativa a Parka, molto usata anche a Reykjavík.' },
+  { icon: '⛽', title: 'Distributori N1', url: 'https://www.n1.is/', desc: 'Rete di distributori più diffusa, utile per programmare i rifornimenti.' },
+  { icon: '⛽', title: 'Distributori Orkan', url: 'https://www.orkan.is/', desc: 'Altra rete di distributori diffusa in tutta l\'isola.' },
+  { icon: '📞', title: 'Emergenze — 112 Iceland', url: 'https://www.112.is/', desc: 'Numero unico di emergenza islandese; l\'app invia la posizione GPS ai soccorsi.' },
+];
+
+function renderUsefulLinks() {
+  const grid = document.getElementById('usefulLinksGrid');
+  grid.innerHTML = USEFUL_LINKS.map(l => `
+    <a class="useful-link-card" href="${l.url}" target="_blank" rel="noopener">
+      <div class="ul-icon">${l.icon}</div>
+      <div class="ul-body">
+        <div class="ul-title">${l.title}</div>
+        <div class="ul-desc">${l.desc}</div>
+      </div>
+    </a>
+  `).join('');
+}
+
+function renderCustomSections() {
+  const box = document.getElementById('customSectionsList');
+  if (customSections.length === 0) {
+    box.innerHTML = `<div class="pc-hint">Nessuna sezione ancora — tocca "➕ Aggiungi una sezione" per iniziare.</div>`;
+    return;
+  }
+  const sorted = [...customSections].sort((a, b) => a.ts - b.ts);
+  box.innerHTML = sorted.map(sec => `
+    <div class="custom-section-card" data-id="${sec.id}">
+      <div class="cs-header">
+        <div class="cs-title">${sec.title}</div>
+        <div class="cs-actions">
+          <span class="cs-edit" data-id="${sec.id}">✏️</span>
+          <span class="cs-delete" data-id="${sec.id}">🗑️</span>
+        </div>
+      </div>
+      <div class="cs-text">${linkify(sec.text || '')}</div>
+      <div class="cs-edit-box" id="csEdit_${sec.id}" style="display:none;">
+        <input type="text" class="cs-edit-title" value="${sec.title.replace(/"/g, '&quot;')}" placeholder="Titolo sezione">
+        <textarea class="cs-edit-text" placeholder="Testo della sezione...">${sec.text || ''}</textarea>
+        <div class="detail-edit-actions">
+          <button class="btn primary cs-save" data-id="${sec.id}">Salva</button>
+          <span class="detail-reset-link cs-cancel" data-id="${sec.id}">Annulla</span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  box.querySelectorAll('.cs-edit').forEach(el => {
+    el.addEventListener('click', () => {
+      document.getElementById('csEdit_' + el.dataset.id).style.display = 'block';
+    });
+  });
+  box.querySelectorAll('.cs-cancel').forEach(el => {
+    el.addEventListener('click', () => {
+      document.getElementById('csEdit_' + el.dataset.id).style.display = 'none';
+    });
+  });
+  box.querySelectorAll('.cs-save').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.id;
+      const card = box.querySelector(`.custom-section-card[data-id="${id}"]`);
+      const title = card.querySelector('.cs-edit-title').value.trim() || 'Senza titolo';
+      const text = card.querySelector('.cs-edit-text').value.trim();
+      if (typeof db !== 'undefined' && db) {
+        db.collection('customSections').doc(id).update({ title, text }).catch((err) => {
+          console.warn('Aggiornamento sezione fallito:', err);
+          alert('⚠️ Modifica non salvata in modo permanente. Errore: ' + (err.code || err.message || err));
+        });
+      } else {
+        const sec = customSections.find(s => s.id === id);
+        if (sec) { sec.title = title; sec.text = text; saveStore(STORE_KEYS.customSections, customSections); renderCustomSections(); }
+      }
+    });
+  });
+  box.querySelectorAll('.cs-delete').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.id;
+      if (!confirm('Eliminare questa sezione?')) return;
+      if (typeof db !== 'undefined' && db && customSectionsFirestoreConnected) {
+        db.collection('customSections').doc(id).delete().catch((err) => console.warn('Eliminazione sezione fallita:', err));
+      } else {
+        customSections = customSections.filter(s => s.id !== id);
+        saveStore(STORE_KEYS.customSections, customSections);
+        renderCustomSections();
+      }
+    });
+  });
+}
+
+document.getElementById('addCustomSectionBtn').addEventListener('click', () => {
+  const title = prompt('Titolo della sezione (es. "Documenti", "Numeri utili"):');
+  if (!title || !title.trim()) return;
+  const text = prompt('Testo della sezione (puoi modificarlo dopo):') || '';
+  const entry = { title: title.trim(), text: text.trim(), ts: Date.now() };
+  if (typeof db !== 'undefined' && db) {
+    db.collection('customSections').add(entry).catch((err) => {
+      console.warn('Salvataggio sezione su Firestore fallito, salvo solo in locale:', err);
+      entry.id = 'cs' + Date.now() + Math.random().toString(36).slice(2, 7);
+      customSections.push(entry);
+      saveStore(STORE_KEYS.customSections, customSections);
+      renderCustomSections();
+    });
+  } else {
+    entry.id = 'cs' + Date.now() + Math.random().toString(36).slice(2, 7);
+    customSections.push(entry);
+    saveStore(STORE_KEYS.customSections, customSections);
+    renderCustomSections();
+  }
+});
+
+function renderUtili() {
+  renderUsefulLinks();
+  renderCustomSections();
 }
 
 document.querySelectorAll('.navbtn').forEach(btn => {
@@ -2495,7 +2637,7 @@ function renderSettlementsList() {
 
 
 document.getElementById('exportBtn').addEventListener('click', () => {
-  const payload = { doneStops, personalNotes, expenses, settlements, participants, startTimes, durationOverrides, cardTopups, descriptionOverrides, noteOverrides, priorityOverrides, suggestions, photoOverrides, mapsOverrides, hiddenStops, customStopsByDay, pernottamentoPhoto, pernottamentoNote, pernottamentoFieldOverrides, exportedAt: new Date().toISOString() };
+  const payload = { doneStops, personalNotes, expenses, settlements, participants, startTimes, durationOverrides, cardTopups, descriptionOverrides, noteOverrides, priorityOverrides, suggestions, photoOverrides, mapsOverrides, hiddenStops, customStopsByDay, pernottamentoPhoto, pernottamentoNote, pernottamentoFieldOverrides, customSections, exportedAt: new Date().toISOString() };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -2529,6 +2671,7 @@ document.getElementById('importBackupFile').addEventListener('change', (e) => {
       ['personalNotes', STORE_KEYS.notes],
       ['expenses', STORE_KEYS.expenses],
       ['settlements', STORE_KEYS.settlements],
+      ['customSections', STORE_KEYS.customSections],
       ['participants', STORE_KEYS.participants],
       ['startTimes', STORE_KEYS.startTimes],
       ['durationOverrides', STORE_KEYS.durationOverrides],
@@ -2556,6 +2699,7 @@ document.getElementById('importBackupFile').addEventListener('change', (e) => {
     personalNotes = loadStore(STORE_KEYS.notes, {});
     expenses = loadStore(STORE_KEYS.expenses, []);
     settlements = loadStore(STORE_KEYS.settlements, []);
+    customSections = loadStore(STORE_KEYS.customSections, []);
     participants = loadStore(STORE_KEYS.participants, participants);
     startTimes = loadStore(STORE_KEYS.startTimes, {});
     durationOverrides = loadStore(STORE_KEYS.durationOverrides, {});

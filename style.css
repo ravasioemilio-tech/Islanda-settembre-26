@@ -835,11 +835,16 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--line);
+  padding: 10px 14px 2px;
   font-size: 0.86rem;
 }
-.per-person-row:last-child { border-bottom: none; }
+.pp-breakdown {
+  padding: 0 14px 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.74rem;
+  color: var(--ink-soft);
+}
+.pp-breakdown:last-child { border-bottom: none; }
 .pp-name { font-weight: 700; color: var(--navy); flex: 1; }
 .pp-count {
   font-size: 0.78rem;
@@ -926,6 +931,93 @@ button {
   color: var(--ink-soft);
   margin: -6px 0 12px;
   line-height: 1.4;
+}
+
+/* ---------- vista Utili ---------- */
+.useful-links-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 16px 8px;
+}
+.useful-link-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  text-decoration: none;
+  box-shadow: var(--shadow);
+}
+.ul-icon { font-size: 1.4rem; flex: 0 0 auto; line-height: 1.2; }
+.ul-title { font-weight: 800; color: var(--navy); font-size: 0.9rem; }
+.ul-desc { font-size: 0.78rem; color: var(--ink-soft); margin-top: 2px; line-height: 1.4; }
+
+.custom-sections-hint {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  padding: 0 16px 8px;
+  line-height: 1.4;
+}
+.custom-sections-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 16px;
+}
+.custom-section-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: var(--shadow);
+}
+.cs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.cs-title { font-weight: 800; color: var(--navy); font-size: 0.92rem; }
+.cs-actions { display: flex; gap: 10px; font-size: 0.9rem; cursor: pointer; }
+.cs-text {
+  margin-top: 6px;
+  font-size: 0.85rem;
+  color: var(--ink);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.cs-edit-box {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cs-edit-title, .cs-edit-text {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  background: #fbfbf7;
+}
+.cs-edit-text { min-height: 70px; resize: vertical; }
+.custom-section-add-row {
+  padding: 12px 16px 4px;
+}
+.custom-section-add-row .btn.ghost {
+  width: 100%;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--teal);
+  background: #fff;
+  color: var(--teal);
+  font-weight: 800;
+  font-size: 0.85rem;
+  cursor: pointer;
 }
 
 .empty-state {

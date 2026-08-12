@@ -442,6 +442,22 @@ restituito l'intero importo, diviso solo tra le persone rimaste
 selezionate. Nell'elenco spese, questa voce compare con l'etichetta
 "👥 diviso con N (nomi)".
 
+## 🧭 Nuovo tab "Utili": link e note personalizzate
+
+**Link utili per il viaggio**: una raccolta di siti/app ufficiali già
+pronti — previsioni aurora boreale, meteo, condizioni delle strade in
+tempo reale, SafeTravel (piano di viaggio e sicurezza), le due app di
+parcheggio più diffuse in Islanda (Parka ed EasyPark), i due principali
+distributori di benzina (N1, Orkan), e il numero di emergenza 112. Tocchi
+e si aprono direttamente.
+
+**Le tue note per sezioni**: uno spazio libero dove aggiungi sezioni con
+titolo e testo a piacere — es. "Documenti", "Numeri utili", "Checklist
+bagagli", qualsiasi cosa ti serva. Tocca "➕ Aggiungi una sezione", scrivi
+titolo e testo; puoi modificarle (✏️) o eliminarle (🗑️) in ogni momento.
+Sono sincronizzate tramite Firestore: permanenti e uguali su ogni
+dispositivo, come spese e pagamenti.
+
 ## Registrare i pagamenti già fatti (chi ti ha già ridato i soldi)
 
 Nella scheda **Budget**, sotto "💰 Saldi tra chi ha anticipato di tasca

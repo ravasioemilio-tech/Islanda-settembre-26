@@ -25,6 +25,7 @@
       <button class="navbtn active" data-view="days"><span class="ic">🗺️</span>Giorni</button>
       <button class="navbtn" data-view="budget"><span class="ic">💶</span>Budget</button>
       <button class="navbtn" data-view="info"><span class="ic">🏠</span>Info</button>
+      <button class="navbtn" data-view="utili"><span class="ic">🧭</span>Utili</button>
     </div>
     <button class="btn ghost search-open-btn" id="searchOpenDesktop">🔍 Cerca una località</button>
     <button class="btn primary desktop-add-btn" id="fabAddExpenseDesktop">＋ Aggiungi spesa</button>
@@ -87,12 +88,25 @@
   </div>
 </div>
 
+<div id="view-utili" style="display:none">
+  <div class="section-title">🧭 Link utili per il viaggio</div>
+  <div class="useful-links-grid" id="usefulLinksGrid"></div>
+
+  <div class="section-title">📌 Le tue note per sezioni</div>
+  <div class="custom-sections-hint">Aggiungi qui informazioni utili organizzate come vuoi tu (es. "Documenti", "Numeri utili", "Checklist bagagli") — restano salvate e uguali su ogni dispositivo.</div>
+  <div class="custom-sections-list" id="customSectionsList"></div>
+  <div class="custom-section-add-row">
+    <button class="btn ghost" id="addCustomSectionBtn">➕ Aggiungi una sezione</button>
+  </div>
+</div>
+
 </div><!-- /appFrame -->
 
 <div class="bottomnav">
   <button class="navbtn active" data-view="days"><span class="ic">🗺️</span>Giorni</button>
   <button class="navbtn" data-view="budget"><span class="ic">💶</span>Budget</button>
   <button class="navbtn" data-view="info"><span class="ic">🏠</span>Info</button>
+  <button class="navbtn" data-view="utili"><span class="ic">🧭</span>Utili</button>
 </div>
 
 
