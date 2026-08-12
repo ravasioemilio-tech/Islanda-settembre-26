@@ -476,6 +476,17 @@ I pagamenti registrati compaiono in un elenco sotto ai saldi, con la
 possibilità di eliminarli (✕) se inseriti per errore. Sono sincronizzati
 tramite Firestore come le spese: permanenti e uguali su ogni dispositivo.
 
+## "Quanto costa il viaggio a testa" (non chi ha pagato)
+
+Nella scheda Budget, il riepilogo per persona mostra la **quota reale**
+di ognuno, non chi ha materialmente messo la carta. Una spesa comune (es.
+i voli prenotati da uno solo) viene **divisa automaticamente tra tutti i
+coinvolti**: se costa 1200€ in 6, ognuno vede la propria quota di 200€,
+anche se a pagarla per tutti è stato uno solo. Il "chi deve dare/ricevere
+da chi" resta gestito separatamente nei **Saldi**, appena sotto — le due
+sezioni rispondono a domande diverse: "quanto mi costa il viaggio" contro
+"chi deve ancora saldare con chi".
+
 ## Cassa comune con carta prepagata e saldi tra i partecipanti
 
 Nella scheda **Info** trovi "Partecipanti al viaggio" (6 nomi già inseriti,

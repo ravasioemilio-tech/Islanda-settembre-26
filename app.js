@@ -672,15 +672,27 @@ function computeCardBalance() {
 }
 
 // ---------------- riepilogo per persona: totale spese personali + contatore spese registrate ----------------
+// Calcola quanto "costa" il viaggio a ciascuno — non chi ha materialmente pagato, ma la sua
+// quota reale: una spesa comune (es. i voli) va divisa tra tutti quelli coinvolti, indipendentemente
+// da chi ha messo la carta o anticipato i soldi (quello lo gestiscono già i Saldi, qui invece
+// vogliamo sapere "quanto costa il viaggio a testa").
 function computePerPersonSummary() {
   const summary = {};
-  participants.forEach(p => { summary[p] = { personalTotal: 0, sharedTotal: 0, totalPaid: 0, count: 0 }; });
+  participants.forEach(p => { summary[p] = { personalTotal: 0, shareOfCommon: 0, totalCost: 0, count: 0 }; });
   expenses.forEach(e => {
-    if (!e.paidBy || !(e.paidBy in summary)) return; // spese pagate con la carta comune non hanno un "paidBy"
-    summary[e.paidBy].count += 1;
-    summary[e.paidBy].totalPaid += e.amount;
-    if (e.shared === false) summary[e.paidBy].personalTotal += e.amount;
-    else summary[e.paidBy].sharedTotal += e.amount;
+    if (e.paidBy && e.paidBy in summary) summary[e.paidBy].count += 1;
+    const group = (e.splitAmong && e.splitAmong.length) ? e.splitAmong.filter(p => p in summary)
+      : (e.shared === false ? null : participants);
+    if (!group || group.length === 0) {
+      // spesa puramente personale: conta solo per chi l'ha sostenuta
+      if (e.paidBy && e.paidBy in summary) summary[e.paidBy].personalTotal += e.amount;
+      return;
+    }
+    const share = e.amount / group.length;
+    group.forEach(p => { summary[p].shareOfCommon += share; });
+  });
+  participants.forEach(p => {
+    summary[p].totalCost = summary[p].personalTotal + summary[p].shareOfCommon;
   });
   return summary;
 }
@@ -1633,7 +1645,7 @@ function renderBudget() {
     <div class="row total"><span class="label">Saldo residuo sulla carta</span><span class="value ${cardCls}">${fmtEuro(card.remaining)}</span></div>
   `;
 
-  // ---- riepilogo per persona ----
+  // ---- riepilogo per persona: quanto costa il viaggio a testa (non chi ha pagato) ----
   const perPerson = computePerPersonSummary();
   const perPersonBox = document.getElementById('perPersonBox');
   let ppHtml = '<div class="per-person-list">';
@@ -1643,9 +1655,9 @@ function renderBudget() {
       <div class="per-person-row">
         <span class="pp-name">${p}</span>
         <span class="pp-count" title="Numero di spese registrate a suo nome">🧾 ${s.count}</span>
-        <span class="pp-total pp-total-main">${fmtEuro(s.totalPaid)} <small>totale</small></span>
+        <span class="pp-total pp-total-main">${fmtEuro(s.totalCost)} <small>quota totale</small></span>
       </div>
-      <div class="pp-breakdown">${fmtEuro(s.personalTotal)} personali · ${fmtEuro(s.sharedTotal)} comuni</div>
+      <div class="pp-breakdown">${fmtEuro(s.personalTotal)} personali · ${fmtEuro(s.shareOfCommon)} quota spese comuni</div>
     `;
   });
   ppHtml += '</div>';
