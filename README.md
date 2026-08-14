@@ -326,23 +326,37 @@ documento stesso — così funziona con qualunque nome, senza eccezioni.
 
 In alto trovi ora **"🔍 Cerca una località"** (icona lente sul telefono, testo esteso sul desktop): scrivi anche solo qualche lettera del nome e vedi subito i risultati da **tutti i giorni**, non solo quello aperto — ignora maiuscole e accenti. Tocca un risultato: ti porta dritto al giorno giusto e apre subito la scheda di quella tappa.
 
-## Riordinare le tappe di un giorno (imperdibili prima, facoltative dove vuoi)
+## Giornata divisa in due: Imperdibili sopra, Facoltative sotto
 
-Su ogni tappa trovi ora due frecce **▲▼** accanto al pallino di spunta:
-spostano la tappa su o giù nell'ordine del giorno. Utile per mettere in
-fila prima le 🟢 Imperdibili e poi decidere tu, una per una, in che punto
-inserire le 🟡 Facoltative rispetto al percorso — gli orari si ricalcolano
-automaticamente col nuovo ordine, esattamente come quando nascondi una
-tappa. Il nuovo ordine è sincronizzato tramite Firestore: resta permanente
-e uguale su ogni dispositivo.
+Ogni giorno ora mostra due sezioni separate:
+
+- **🟢 Imperdibili** (in alto) — queste sono quelle che **guidano gli
+  orari**: la sequenza, i tempi di guida e gli orari di arrivo/partenza si
+  calcolano solo su queste. Ci finiscono anche le tappe senza priorità
+  impostata (es. i pernottamenti).
+- **🟡 Facoltative** (in basso, sotto un titolo giallo) — **non contano
+  negli orari**: restano "in panchina", pronte per essere inserite al
+  volo se durante il viaggio scopri di avere tempo.
+
+**Per spostare una tappa da una sezione all'altra**: apri la tappa, in
+fondo trovi **"⬆️ Rendi imperdibile"** (se è tra le facoltative) o
+**"⬇️ Rendi facoltativa"** (se è tra le imperdibili) — un tocco e cambia
+sezione, con gli orari che si ricalcolano subito da soli.
+
+Le due frecce **▲▼** accanto al pallino di spunta riordinano la tappa
+**dentro la sua sezione** (le imperdibili tra loro, le facoltative tra
+loro) — il nuovo ordine è sincronizzato tramite Firestore: permanente e
+uguale su ogni dispositivo.
 
 **⚠️ Tempo di guida da ricontrollare**: gli orari si ricalcolano da soli,
 ma il **tempo di guida** (i minuti "🚗") resta quello calcolato per il
 tragitto originale — l'app non sa calcolare distanze reali tra due punti.
-Quando la tappa immediatamente precedente cambia (per un riordino, o
-perché quella precedente è stata nascosta), compare un'icona **⚠️** accanto
-al tempo di guida di quella tappa: è il segnale per aprire "✏️ orari" e
-correggere il tempo a mano, controllando la distanza reale su Google Maps.
+Quando la tappa immediatamente precedente (tra le imperdibili) cambia,
+compare un'icona **⚠️** accanto al tempo di guida di quella tappa: è il
+segnale per aprire "✏️ orari" e correggere il tempo a mano, controllando
+la distanza reale su Google Maps. Le facoltative mostrano sempre il loro
+tempo originale con la scritta "(non conta negli orari)", dato che non
+sono agganciate alla sequenza finché non le rendi imperdibili.
 
 **Nota**: ho scelto le frecce invece del trascinamento perché il "drag"
 vero è spesso poco affidabile su telefono/tablet dentro un browser (tocchi

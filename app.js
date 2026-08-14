@@ -613,8 +613,11 @@ function computeDayChain(day) {
   merged.forEach(({ key, stop }) => {
     const { guidaMin, visitaMin } = getEffectiveDurations(key, stop);
     const hidden = isStopHidden(key);
-    if (hidden) {
-      // tolta dal calcolo: non conta nel totale, non sposta gli orari successivi
+    const pri = getEffectivePriority(key, stop);
+    const isOptional = pri === 'Facoltativa' || pri === 'Da evitare';
+    if (hidden || isOptional) {
+      // tolta dal calcolo degli orari: non conta nel totale, non sposta gli orari successivi
+      // (le facoltative/da evitare sono trattate come le tappe nascoste, finché non diventano imperdibili)
       chain[key] = { partenza: cursor, arrivo: cursor, guidaMin, visitaMin, hidden: true };
       return;
     }
@@ -1391,28 +1394,32 @@ function renderDayView() {
   const list = document.getElementById('stopsList');
   list.innerHTML = '';
 
-  visible.forEach(({ key, stop: s, custom }, displayIdx) => {
-    const isDone = doneList.includes(key);
-    const card = document.createElement('div');
-    card.className = 'stop-card' + (isDone ? ' done' : '');
+  const mainStops = [];
+  const optionalStops = [];
+  visible.forEach((item) => {
+    const pri = getEffectivePriority(item.key, item.stop);
+    if (pri === 'Facoltativa' || pri === 'Da evitare') optionalStops.push(item);
+    else mainStops.push(item);
+  });
 
+  function buildStopCardHtml({ key, stop: s, custom }, numberLabel, predKeyForWarning, isOptionalSection) {
+    const isDone = doneList.includes(key);
     const { partenza, arrivo, guidaMin, visitaMin } = chain[key];
     const effectiveDescFull = getEffectiveDescription(key, s);
     const effectiveDescPreview = effectiveDescFull ? effectiveDescFull.split('\n\n')[0] : '';
 
-    // se la tappa immediatamente precedente non è più quella originale (per un riordino con le
-    // frecce, o perché la precedente è stata nascosta/eliminata), il tempo di guida mostrato è
-    // ancora quello calcolato per il vecchio tragitto: segnalarlo per ricordare di ricontrollarlo
-    const actualPredKey = displayIdx > 0 ? visible[displayIdx - 1].key : null;
-    const guidaPotenzialmenteObsoleta = guidaMin > 0 && (naturalPred[key] || null) !== actualPredKey;
+    const guidaPotenzialmenteObsoleta = !isOptionalSection && guidaMin > 0 && (naturalPred[key] || null) !== predKeyForWarning;
 
-    const pri = priorityInfo(getEffectivePriority(key, s));
+    const effPri = getEffectivePriority(key, s);
+    const pri = priorityInfo(effPri);
     let badges = '';
     if (pri) badges += `<span class="badge ${pri.cls}">${pri.label}</span>`;
-    if (guidaMin > 0) {
+    if (!isOptionalSection && guidaMin > 0) {
       const warnSpan = guidaPotenzialmenteObsoleta
         ? `<span class="badge-warn" title="Tappa precedente cambiata: questo tempo di guida potrebbe non essere più giusto, ricontrollalo">⚠️</span>` : '';
       badges += `<span class="badge time">🚗 ${formatDurationMin(guidaMin)}${s.km ? ' · ' + s.km + ' km' : ''}${warnSpan}</span>`;
+    } else if (isOptionalSection && guidaMin > 0) {
+      badges += `<span class="badge time">🚗 ${formatDurationMin(guidaMin)}${s.km ? ' · ' + s.km + ' km' : ''} <em>(non conta negli orari)</em></span>`;
     }
     if (visitaMin > 0) badges += `<span class="badge time">⏱ ${formatDurationMin(visitaMin)}</span>`;
     if (s.parcheggio !== null && s.parcheggio !== undefined) {
@@ -1427,7 +1434,12 @@ function renderDayView() {
 
     const savedNote = personalNotes[key] || '';
     const isOverridden = !!durationOverrides[key];
+    const promoteBtn = isOptionalSection
+      ? `<span class="stop-priority-quick" data-key="${key}" data-newpri="Imperdibile" title="Inseriscila tra le imperdibili: torna a contare negli orari">⬆️ Rendi imperdibile</span>`
+      : `<span class="stop-priority-quick" data-key="${key}" data-newpri="Facoltativa" title="Spostala tra le facoltative: non conterà più negli orari">⬇️ Rendi facoltativa</span>`;
 
+    const card = document.createElement('div');
+    card.className = 'stop-card' + (isDone ? ' done' : '') + (isOptionalSection ? ' stop-card-optional' : '');
     card.innerHTML = `
       <div class="stop-top">
         <div class="stop-check ${isDone ? 'checked' : ''}" data-key="${key}">${isDone ? '✓' : ''}</div>
@@ -1437,7 +1449,7 @@ function renderDayView() {
         </div>
         <div class="stop-main">
           <div class="stop-title-row">
-            <div class="stop-title stop-title-clickable" data-key="${key}">${displayIdx + 1}. ${s.a || ''}</div>
+            <div class="stop-title stop-title-clickable" data-key="${key}">${numberLabel !== null ? numberLabel + '. ' : '• '}${s.a || ''}</div>
             <button class="stop-detail-btn detail-open" data-key="${key}">📖 Scheda</button>
           </div>
           <div class="stop-sub">da ${s.da || ''}</div>
@@ -1466,13 +1478,37 @@ function renderDayView() {
             <textarea placeholder="Scrivi qui una nota, un'impressione, un promemoria...">${savedNote}</textarea>
           </div>
           <div class="stop-hide-row">
+            ${promoteBtn}
             <span class="stop-hide-btn" data-key="${key}" data-custom="${custom ? '1' : '0'}">${custom ? '🗑️ Elimina questa tappa' : '🙈 Nascondi questa tappa'}</span>
           </div>
         </div>
       </div>
     `;
-    list.appendChild(card);
+    return card;
+  }
+
+  const mainTitle = document.createElement('div');
+  mainTitle.className = 'day-section-title';
+  mainTitle.textContent = `🟢 Imperdibili (guidano gli orari) — ${mainStops.length}`;
+  list.appendChild(mainTitle);
+  mainStops.forEach(({ key, stop: s, custom }, i) => {
+    const predKey = i > 0 ? mainStops[i - 1].key : null;
+    list.appendChild(buildStopCardHtml({ key, stop: s, custom }, i + 1, predKey, false));
   });
+
+  if (optionalStops.length) {
+    const optTitle = document.createElement('div');
+    optTitle.className = 'day-section-title day-section-title-optional';
+    optTitle.textContent = `🟡 Facoltative — inseriscile se hai tempo — ${optionalStops.length}`;
+    list.appendChild(optTitle);
+    const optHint = document.createElement('div');
+    optHint.className = 'day-section-hint';
+    optHint.textContent = 'Non contano negli orari finché non le rendi imperdibili con il pulsante qui sotto.';
+    list.appendChild(optHint);
+    optionalStops.forEach(({ key, stop: s, custom }) => {
+      list.appendChild(buildStopCardHtml({ key, stop: s, custom }, null, null, true));
+    });
+  }
 
   // wire checkboxes
   list.querySelectorAll('.stop-check').forEach(el => {
@@ -1561,19 +1597,38 @@ function renderDayView() {
     });
   });
 
+  // wire spostamento rapido Imperdibile <-> Facoltativa
+  list.querySelectorAll('.stop-priority-quick').forEach(el => {
+    el.addEventListener('click', () => {
+      const key = el.dataset.key;
+      const newPri = el.dataset.newpri;
+      const merged2 = getMergedStops(day);
+      const found = merged2.find(m => m.key === key);
+      if (!found) return;
+      if (newPri === found.stop.priorita) {
+        delete priorityOverrides[key]; // torna al valore originale, non serve un override
+      } else {
+        priorityOverrides[key] = newPri;
+      }
+      saveStore(STORE_KEYS.priorityOverrides, priorityOverrides);
+      renderDayView();
+    });
+  });
+
   // wire spostamento su/giù (riordino manuale delle tappe)
   function moveStop(key, direction) {
-    // parte dall'ordine attuale VISIBILE (quello che l'utente vede e vuole riordinare),
-    // poi lo salva come nuovo ordine completo del giorno
-    const currentOrder = visible.map(v => v.key);
-    const idx = currentOrder.indexOf(key);
+    // sposta la tappa dentro alla SUA sezione (imperdibili o facoltative), non tra le due:
+    // le due liste restano separate anche nell'ordine salvato
+    const inMain = mainStops.some(m => m.key === key);
+    const group = (inMain ? mainStops : optionalStops).map(v => v.key);
+    const idx = group.indexOf(key);
     const swapWith = idx + direction;
-    if (idx === -1 || swapWith < 0 || swapWith >= currentOrder.length) return;
-    [currentOrder[idx], currentOrder[swapWith]] = [currentOrder[swapWith], currentOrder[idx]];
-    // le tappe nascoste non comparivano in "visible": le riaggiungo in fondo, nel loro ordine originale,
-    // così restano al loro posto senza sparire dall'elenco salvato
-    const hiddenKeys = merged.map(m => m.key).filter(k => !currentOrder.includes(k));
-    stopOrderByDay[day.id] = currentOrder.concat(hiddenKeys);
+    if (idx === -1 || swapWith < 0 || swapWith >= group.length) return;
+    [group[idx], group[swapWith]] = [group[swapWith], group[idx]];
+    const newMainOrder = inMain ? group : mainStops.map(v => v.key);
+    const newOptionalOrder = inMain ? optionalStops.map(v => v.key) : group;
+    const hiddenKeys = merged.map(m => m.key).filter(k => isStopHidden(k));
+    stopOrderByDay[day.id] = newMainOrder.concat(newOptionalOrder, hiddenKeys);
     saveStore(STORE_KEYS.stopOrder, stopOrderByDay);
     renderDayView();
     saveStopOrder(day.id);
