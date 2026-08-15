@@ -258,24 +258,38 @@ button {
   cursor: pointer;
 }
 .day-section-title {
-  margin: 18px 4px 10px;
-  font-size: 0.85rem;
-  font-weight: 800;
+  margin: 20px 4px 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
   color: var(--navy);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .day-section-title:first-child { margin-top: 4px; }
-.day-section-title-optional { color: var(--amber); }
+.day-section-title-optional { color: var(--ink); }
+.dst-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.dst-dot-main { background: var(--green); }
+.dst-dot-optional { background: var(--amber); }
 .day-section-hint {
-  margin: -6px 4px 10px;
+  margin: -8px 4px 12px 21px;
   font-size: 0.76rem;
   color: var(--ink-soft);
-  font-style: italic;
 }
-.stop-card-optional {
-  opacity: 0.9;
-  border-style: dashed;
+.stops-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.stops-group-main .stop-card { border-left: 3px solid var(--green); }
+.stops-group-optional .stop-card {
+  border-left: 3px solid var(--amber);
+  background: #fffdf7;
 }
 .badge.custom-badge {
   background: var(--teal-light);

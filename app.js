@@ -1489,25 +1489,31 @@ function renderDayView() {
 
   const mainTitle = document.createElement('div');
   mainTitle.className = 'day-section-title';
-  mainTitle.textContent = `🟢 Imperdibili (guidano gli orari) — ${mainStops.length}`;
+  mainTitle.innerHTML = `<span class="dst-dot dst-dot-main"></span>Imperdibili (guidano gli orari) — ${mainStops.length}`;
   list.appendChild(mainTitle);
+  const mainGroup = document.createElement('div');
+  mainGroup.className = 'stops-group stops-group-main';
   mainStops.forEach(({ key, stop: s, custom }, i) => {
     const predKey = i > 0 ? mainStops[i - 1].key : null;
-    list.appendChild(buildStopCardHtml({ key, stop: s, custom }, i + 1, predKey, false));
+    mainGroup.appendChild(buildStopCardHtml({ key, stop: s, custom }, i + 1, predKey, false));
   });
+  list.appendChild(mainGroup);
 
   if (optionalStops.length) {
     const optTitle = document.createElement('div');
     optTitle.className = 'day-section-title day-section-title-optional';
-    optTitle.textContent = `🟡 Facoltative — inseriscile se hai tempo — ${optionalStops.length}`;
+    optTitle.innerHTML = `<span class="dst-dot dst-dot-optional"></span>Facoltative — inseriscile se hai tempo — ${optionalStops.length}`;
     list.appendChild(optTitle);
     const optHint = document.createElement('div');
     optHint.className = 'day-section-hint';
     optHint.textContent = 'Non contano negli orari finché non le rendi imperdibili con il pulsante qui sotto.';
     list.appendChild(optHint);
+    const optGroup = document.createElement('div');
+    optGroup.className = 'stops-group stops-group-optional';
     optionalStops.forEach(({ key, stop: s, custom }) => {
-      list.appendChild(buildStopCardHtml({ key, stop: s, custom }, null, null, true));
+      optGroup.appendChild(buildStopCardHtml({ key, stop: s, custom }, null, null, true));
     });
+    list.appendChild(optGroup);
   }
 
   // wire checkboxes
