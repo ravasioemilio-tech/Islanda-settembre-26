@@ -3,7 +3,7 @@
 // IMPORTANTE: se aggiorni i file dell'app, cambia CACHE_NAME (es. v2, v3...)
 // altrimenti il telefono continuerà a usare la versione vecchia in cache.
 
-const CACHE_NAME = 'islanda-trip-v71';
+const CACHE_NAME = 'islanda-trip-v72';
 const ASSETS = [
   './',
   './index.html',
