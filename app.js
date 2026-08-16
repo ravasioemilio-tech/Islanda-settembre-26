@@ -10,6 +10,7 @@ const STORE_KEYS = {
   expenses: 'iceland_expenses_v1',
   settlements: 'iceland_settlements_v1',
   customSections: 'iceland_custom_sections_v1',
+  dayNotes: 'iceland_day_notes_v1',
   startTimes: 'iceland_start_times_v1',
   durationOverrides: 'iceland_duration_overrides_v1',
   participants: 'iceland_participants_v1',
@@ -99,6 +100,40 @@ if (typeof db !== 'undefined' && db) {
     console.warn('Firestore non raggiungibile, uso la copia locale delle note personalizzate:', err);
   });
 }
+
+// ---------------- sincronizzazione note dell'intera giornata (Firestore, se disponibile) ----------------
+let dayNotes = loadStore(STORE_KEYS.dayNotes, {}); // { "1": "testo libero sulla giornata", ... }
+function saveDayNote(dayId) {
+  if (typeof db === 'undefined' || !db) return;
+  const docId = firestoreSafeDocId('daynote_' + dayId);
+  db.collection('sharedDayNotes').doc(docId).set({ dayId: String(dayId), text: dayNotes[dayId] || '' }).catch((err) => {
+    console.warn('Salvataggio nota giornata su Firestore fallito:', err);
+    alert(`⚠️ Questa nota NON è stata condivisa/salvata in modo permanente. Errore: ${err.code || err.message || err}`);
+  });
+}
+if (typeof db !== 'undefined' && db) {
+  let dayNotesFirstSync = true;
+  db.collection('sharedDayNotes').onSnapshot((snapshot) => {
+    const remote = {};
+    snapshot.docs.forEach(doc => {
+      const d = doc.data();
+      if (d && d.dayId !== undefined) remote[d.dayId] = d.text || '';
+    });
+    if (dayNotesFirstSync) {
+      dayNotesFirstSync = false;
+      Object.keys(dayNotes).forEach(dayId => { if (!(dayId in remote)) saveDayNote(dayId); });
+    }
+    dayNotes = remote;
+    saveStore(STORE_KEYS.dayNotes, dayNotes);
+    if (typeof currentDayId !== 'undefined' && typeof renderDayView === 'function' && typeof currentView !== 'undefined' && currentView === 'days') {
+      const ta = document.getElementById('dayNoteTextarea');
+      if (ta && document.activeElement !== ta) ta.value = dayNotes[currentDayId] || '';
+    }
+  }, (err) => {
+    console.warn('Firestore (note giornata) non raggiungibile, uso la copia locale:', err);
+  });
+}
+
 let descriptionOverrides = loadStore(STORE_KEYS.descriptionOverrides, {}); // { "1_0": "testo modificato dall'utente", ... }
 let noteOverrides = loadStore(STORE_KEYS.noteOverrides, {}); // { "1_0": "nota pratica modificata dall'utente", ... }
 let priorityOverrides = loadStore(STORE_KEYS.priorityOverrides, {}); // { "1_0": "Imperdibile", ... }
@@ -1333,14 +1368,20 @@ function renderDayView() {
 
   const timesBar = document.getElementById('dayTimes');
   timesBar.innerHTML = `
-    <div class="daytimes-box">
-      <div class="dt-field">
-        <label>🌅 Partenza mattutina</label>
-        <input type="time" id="dayStartInput" value="${getStartTime(day.id)}">
+    <div class="daytimes-row">
+      <div class="daytimes-box">
+        <div class="dt-field">
+          <label>🌅 Partenza mattutina</label>
+          <input type="time" id="dayStartInput" value="${getStartTime(day.id)}">
+        </div>
+        <div class="dt-field dt-computed">
+          <label>🌙 Arrivo previsto in serata</label>
+          <div class="dt-value">${formatMin(lastArr)}</div>
+        </div>
       </div>
-      <div class="dt-field dt-computed">
-        <label>🌙 Arrivo previsto in serata</label>
-        <div class="dt-value">${formatMin(lastArr)}</div>
+      <div class="day-note-box">
+        <label>📝 Nota per questa giornata</label>
+        <textarea id="dayNoteTextarea" placeholder="Scrivi qui promemoria, idee, cose da non dimenticare per questo giorno...">${dayNotes[day.id] || ''}</textarea>
       </div>
     </div>
     ${startTimes[day.id] ? `<span class="dt-reset" id="dayStartReset">↺ ripristina orario predefinito (${DEFAULT_START_TIME})</span>` : ''}
@@ -1350,6 +1391,11 @@ function renderDayView() {
     </div>
     <div class="hidden-stops-box" id="hiddenStopsBox"></div>
   `;
+  document.getElementById('dayNoteTextarea').addEventListener('blur', (e) => {
+    dayNotes[day.id] = e.target.value;
+    saveStore(STORE_KEYS.dayNotes, dayNotes);
+    saveDayNote(day.id);
+  });
   document.getElementById('dayStartInput').addEventListener('change', (e) => {
     startTimes[day.id] = e.target.value || DEFAULT_START_TIME;
     saveStore(STORE_KEYS.startTimes, startTimes);
@@ -2710,7 +2756,7 @@ function renderSettlementsList() {
 
 
 document.getElementById('exportBtn').addEventListener('click', () => {
-  const payload = { doneStops, personalNotes, expenses, settlements, participants, startTimes, durationOverrides, cardTopups, descriptionOverrides, noteOverrides, priorityOverrides, suggestions, photoOverrides, mapsOverrides, hiddenStops, customStopsByDay, pernottamentoPhoto, pernottamentoNote, pernottamentoFieldOverrides, customSections, exportedAt: new Date().toISOString() };
+  const payload = { doneStops, personalNotes, expenses, settlements, participants, startTimes, durationOverrides, cardTopups, descriptionOverrides, noteOverrides, priorityOverrides, suggestions, photoOverrides, mapsOverrides, hiddenStops, customStopsByDay, pernottamentoPhoto, pernottamentoNote, pernottamentoFieldOverrides, customSections, dayNotes, exportedAt: new Date().toISOString() };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -2745,6 +2791,7 @@ document.getElementById('importBackupFile').addEventListener('change', (e) => {
       ['expenses', STORE_KEYS.expenses],
       ['settlements', STORE_KEYS.settlements],
       ['customSections', STORE_KEYS.customSections],
+      ['dayNotes', STORE_KEYS.dayNotes],
       ['participants', STORE_KEYS.participants],
       ['startTimes', STORE_KEYS.startTimes],
       ['durationOverrides', STORE_KEYS.durationOverrides],
@@ -2773,6 +2820,7 @@ document.getElementById('importBackupFile').addEventListener('change', (e) => {
     expenses = loadStore(STORE_KEYS.expenses, []);
     settlements = loadStore(STORE_KEYS.settlements, []);
     customSections = loadStore(STORE_KEYS.customSections, []);
+    dayNotes = loadStore(STORE_KEYS.dayNotes, {});
     participants = loadStore(STORE_KEYS.participants, participants);
     startTimes = loadStore(STORE_KEYS.startTimes, {});
     durationOverrides = loadStore(STORE_KEYS.durationOverrides, {});

@@ -364,6 +364,15 @@ e scroll della pagina tendono a confliggere). Le frecce ottengono lo
 stesso risultato in modo più solido — se dopo averle provate preferisci
 comunque il trascinamento, fammelo sapere e vediamo come implementarlo.
 
+## Nota per l'intera giornata
+
+Accanto al box con "Partenza mattutina / Arrivo previsto" (su desktop; sotto,
+su telefono) trovi ora un campo **"📝 Nota per questa giornata"** — un
+promemoria libero per tutto il giorno (non per una singola tappa), utile
+per idee, cose da non dimenticare, appunti generali. Si salva da solo
+quando esci dal campo, ed è sincronizzato tramite Firestore: permanente e
+uguale su ogni dispositivo.
+
 ## Anche le modifiche alle tappe sono ora permanenti (Firestore)
 
 Descrizione, note pratiche, posizione Maps e orari personalizzati **di
