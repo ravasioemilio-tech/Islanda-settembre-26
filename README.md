@@ -364,6 +364,21 @@ e scroll della pagina tendono a confliggere). Le frecce ottengono lo
 stesso risultato in modo più solido — se dopo averle provate preferisci
 comunque il trascinamento, fammelo sapere e vediamo come implementarlo.
 
+## Il campo "da" si aggiorna da solo con l'ordine
+
+Quando sposti una tappa (con le frecce ▲▼ o "Rendi imperdibile/facoltativa"),
+il **"da"** mostrato su ogni tappa imperdibile ora riflette sempre la
+tappa **realmente precedente** nell'ordine attuale, non più il testo
+originale statico — così resta sempre coerente dopo un riordino, senza
+doverlo correggere a mano.
+
+**Quello che invece resta da controllare tu**: il **tempo di guida** (i
+minuti "🚗") — l'app non calcola distanze reali tra due punti, quindi
+quel numero resta quello del tragitto originale finché non lo correggi
+con "✏️ orari" (te lo segnala l'icona ⚠️ quando il vicino è cambiato).
+Le tappe facoltative mantengono invece il loro "da" originale, dato che
+non sono agganciate alla sequenza.
+
 ## Nota per l'intera giornata
 
 Accanto al box con "Partenza mattutina / Arrivo previsto" (su desktop; sotto,

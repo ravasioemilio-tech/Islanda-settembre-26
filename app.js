@@ -943,6 +943,27 @@ document.getElementById('detailStayReset').addEventListener('click', () => {
   savePernottamentoData(currentStayNotte);
 });
 
+// "da" reale nell'ordine attuale (solo per le tappe imperdibili, le uniche incatenate) —
+// usata nella scheda dettagliata di una tappa, stessa logica della card nella lista del giorno
+function getEffectiveDaForKey(day, key) {
+  const s = getStopByKey(day, key);
+  if (!s) return '';
+  const pri = getEffectivePriority(key, s);
+  if (pri === 'Facoltativa' || pri === 'Da evitare') return s.da || '';
+  const merged = getMergedStops(day);
+  const mainKeys = merged
+    .filter(m => !isStopHidden(m.key))
+    .filter(m => {
+      const p = getEffectivePriority(m.key, m.stop);
+      return !(p === 'Facoltativa' || p === 'Da evitare');
+    })
+    .map(m => m.key);
+  const idx = mainKeys.indexOf(key);
+  if (idx <= 0) return s.da || '';
+  const predItem = merged.find(m => m.key === mainKeys[idx - 1]);
+  return (predItem && predItem.stop.a) ? predItem.stop.a : (s.da || '');
+}
+
 async function openStopDetailModal(day, key) {
   const s = getStopByKey(day, key);
   if (!s) return;
@@ -956,7 +977,7 @@ async function openStopDetailModal(day, key) {
   const titleEl = document.getElementById('detailTitle');
   const badgesBox = document.getElementById('detailBadges');
 
-  eyebrow.textContent = `${day.label || 'Giorno ' + day.id} · da ${s.da || ''}`;
+  eyebrow.textContent = `${day.label || 'Giorno ' + day.id} · da ${getEffectiveDaForKey(day, key)}`;
   titleEl.textContent = s.a || '';
 
   const isStay = renderStayInfoSection(day, s);
@@ -1456,6 +1477,15 @@ function renderDayView() {
 
     const guidaPotenzialmenteObsoleta = !isOptionalSection && guidaMin > 0 && (naturalPred[key] || null) !== predKeyForWarning;
 
+    // "da" mostra sempre la tappa REALMENTE precedente nell'ordine attuale (solo per le imperdibili,
+    // le uniche incatenate) invece del testo statico originale, così resta coerente dopo un riordino
+    // o dopo aver spostato una tappa tra imperdibili/facoltative
+    let effectiveDa = s.da || '';
+    if (!isOptionalSection && predKeyForWarning) {
+      const predItem = merged.find(m => m.key === predKeyForWarning);
+      if (predItem && predItem.stop.a) effectiveDa = predItem.stop.a;
+    }
+
     const effPri = getEffectivePriority(key, s);
     const pri = priorityInfo(effPri);
     let badges = '';
@@ -1498,7 +1528,7 @@ function renderDayView() {
             <div class="stop-title stop-title-clickable" data-key="${key}">${numberLabel !== null ? numberLabel + '. ' : '• '}${s.a || ''}</div>
             <button class="stop-detail-btn detail-open" data-key="${key}">📖 Scheda</button>
           </div>
-          <div class="stop-sub">da ${s.da || ''}</div>
+          <div class="stop-sub">da ${effectiveDa}</div>
           <div class="stop-times">
             🕗 <b>${formatMin(partenza)}</b> → <b>${formatMin(arrivo)}</b>
             <span class="stop-time-edit-toggle" data-key="${key}">✏️ orari${isOverridden ? ' •' : ''}</span>
