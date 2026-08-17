@@ -959,7 +959,7 @@ function getEffectiveDaForKey(day, key) {
     })
     .map(m => m.key);
   const idx = mainKeys.indexOf(key);
-  if (idx <= 0) return s.da || '';
+  if (idx <= 0) return (day.stops[0] && day.stops[0].da) ? day.stops[0].da : (s.da || '');
   const predItem = merged.find(m => m.key === mainKeys[idx - 1]);
   return (predItem && predItem.stop.a) ? predItem.stop.a : (s.da || '');
 }
@@ -1479,11 +1479,16 @@ function renderDayView() {
 
     // "da" mostra sempre la tappa REALMENTE precedente nell'ordine attuale (solo per le imperdibili,
     // le uniche incatenate) invece del testo statico originale, così resta coerente dopo un riordino
-    // o dopo aver spostato una tappa tra imperdibili/facoltative
+    // o dopo aver spostato una tappa tra imperdibili/facoltative. Se ora è la PRIMA della giornata,
+    // mostra da dove si parte davvero (il pernottamento della notte prima), non il proprio "da" originale.
     let effectiveDa = s.da || '';
-    if (!isOptionalSection && predKeyForWarning) {
-      const predItem = merged.find(m => m.key === predKeyForWarning);
-      if (predItem && predItem.stop.a) effectiveDa = predItem.stop.a;
+    if (!isOptionalSection) {
+      if (predKeyForWarning) {
+        const predItem = merged.find(m => m.key === predKeyForWarning);
+        if (predItem && predItem.stop.a) effectiveDa = predItem.stop.a;
+      } else if (day.stops[0] && day.stops[0].da) {
+        effectiveDa = day.stops[0].da; // punto di partenza naturale della giornata
+      }
     }
 
     const effPri = getEffectivePriority(key, s);
