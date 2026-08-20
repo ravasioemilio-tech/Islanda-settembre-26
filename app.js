@@ -181,6 +181,50 @@ let hiddenStops = loadStore(STORE_KEYS.hiddenStops, {}); // { "1_0": true, "cust
 let customStopsByDay = loadStore(STORE_KEYS.customStops, {}); // { "1": [ {key, da, a, priorita, guida, km, visita, parcheggio, ingresso, note} ] }
 let stopOrderByDay = loadStore(STORE_KEYS.stopOrder, {}); // { "1": ["1::Þórufoss", "1::Brúarfoss", ...] }
 
+// ---------------- sincronizzazione tappe personalizzate (Firestore, se disponibile) ----------------
+// Un documento per tappa aggiunta dall'utente (o spostata da un altro giorno): permanente e uguale
+// su ogni dispositivo, come tutto il resto.
+function saveCustomStop(dayId, entry) {
+  if (typeof db === 'undefined' || !db) return;
+  const docId = firestoreSafeDocId('customstop_' + entry.key);
+  db.collection('sharedCustomStops').doc(docId).set({ dayId: String(dayId), ...entry }).catch((err) => {
+    console.warn('Salvataggio tappa personalizzata su Firestore fallito:', err);
+    alert(`⚠️ Questa tappa NON è stata condivisa/salvata in modo permanente. Errore: ${err.code || err.message || err}`);
+  });
+}
+function deleteCustomStopFromFirestore(key) {
+  if (typeof db === 'undefined' || !db) return;
+  const docId = firestoreSafeDocId('customstop_' + key);
+  db.collection('sharedCustomStops').doc(docId).delete().catch((err) => console.warn('Eliminazione tappa personalizzata fallita:', err));
+}
+if (typeof db !== 'undefined' && db) {
+  let customStopsFirstSync = true;
+  db.collection('sharedCustomStops').onSnapshot((snapshot) => {
+    const remote = {};
+    snapshot.docs.forEach(doc => {
+      const d = doc.data();
+      if (!d || d.dayId === undefined || !d.key) return;
+      if (!remote[d.dayId]) remote[d.dayId] = [];
+      const { dayId, ...entry } = d;
+      remote[d.dayId].push(entry);
+    });
+    if (customStopsFirstSync) {
+      customStopsFirstSync = false;
+      Object.keys(customStopsByDay).forEach(dayId => {
+        (customStopsByDay[dayId] || []).forEach(entry => {
+          const already = (remote[dayId] || []).some(e => e.key === entry.key);
+          if (!already) saveCustomStop(dayId, entry);
+        });
+      });
+    }
+    customStopsByDay = remote;
+    saveStore(STORE_KEYS.customStops, customStopsByDay);
+    if (typeof renderDayView === 'function' && typeof currentDayId !== 'undefined' && typeof currentView !== 'undefined' && currentView === 'days') renderDayView();
+  }, (err) => {
+    console.warn('Firestore (tappe personalizzate) non raggiungibile, uso la copia locale:', err);
+  });
+}
+
 // ---------------- sincronizzazione ordine tappe (Firestore, se disponibile) ----------------
 // Un documento per giorno, con l'elenco delle chiavi nell'ordine scelto: così il riordino fatto
 // da chiunque (con trascinamento) diventa permanente e uguale su tutti i dispositivi.
@@ -615,6 +659,37 @@ function setStopHidden(key, hidden) {
   if (hidden) hiddenStops[key] = true;
   else delete hiddenStops[key];
   saveStore(STORE_KEYS.hiddenStops, hiddenStops);
+  if (typeof db === 'undefined' || !db) return;
+  const docId = firestoreSafeDocId('hidden_' + key);
+  if (hidden) {
+    db.collection('sharedHiddenStops').doc(docId).set({ key }).catch((err) => console.warn('Salvataggio tappa nascosta fallito:', err));
+  } else {
+    db.collection('sharedHiddenStops').doc(docId).delete().catch((err) => console.warn('Rimozione tappa nascosta fallita:', err));
+  }
+}
+if (typeof db !== 'undefined' && db) {
+  let hiddenStopsFirstSync = true;
+  db.collection('sharedHiddenStops').onSnapshot((snapshot) => {
+    const remote = {};
+    snapshot.docs.forEach(doc => {
+      const d = doc.data();
+      if (d && d.key) remote[d.key] = true;
+    });
+    if (hiddenStopsFirstSync) {
+      hiddenStopsFirstSync = false;
+      Object.keys(hiddenStops).forEach(key => {
+        if (!(key in remote)) {
+          const docId = firestoreSafeDocId('hidden_' + key);
+          db.collection('sharedHiddenStops').doc(docId).set({ key }).catch((err) => console.warn('Migrazione tappa nascosta fallita:', err));
+        }
+      });
+    }
+    hiddenStops = remote;
+    saveStore(STORE_KEYS.hiddenStops, hiddenStops);
+    if (typeof renderDayView === 'function' && typeof currentDayId !== 'undefined' && typeof currentView !== 'undefined' && currentView === 'days') renderDayView();
+  }, (err) => {
+    console.warn('Firestore (tappe nascoste) non raggiungibile, uso la copia locale:', err);
+  });
 }
 function addCustomStop(dayId, data) {
   const key = `custom_${dayId}_${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
@@ -624,14 +699,15 @@ function addCustomStop(dayId, data) {
   if (!customStopsByDay[dayId]) customStopsByDay[dayId] = [];
   customStopsByDay[dayId].push(entry);
   saveStore(STORE_KEYS.customStops, customStopsByDay);
+  saveCustomStop(dayId, entry);
   return key;
 }
 function deleteCustomStop(dayId, key) {
   if (!customStopsByDay[dayId]) return;
   customStopsByDay[dayId] = customStopsByDay[dayId].filter(c => c.key !== key);
   saveStore(STORE_KEYS.customStops, customStopsByDay);
-  delete hiddenStops[key];
-  saveStore(STORE_KEYS.hiddenStops, hiddenStops);
+  if (hiddenStops[key]) setStopHidden(key, false); // ripulisce anche su Firestore, se serve
+  deleteCustomStopFromFirestore(key);
 }
 
 const DEFAULT_START_TIME = '08:00';
@@ -1609,6 +1685,7 @@ function renderDayView() {
           </div>
           <div class="stop-hide-row">
             ${promoteBtn}
+            <span class="stop-move-day-btn" data-key="${key}">📅 Sposta in un altro giorno</span>
             <span class="stop-hide-btn" data-key="${key}" data-custom="${custom ? '1' : '0'}">${custom ? '🗑️ Elimina questa tappa' : '🙈 Nascondi questa tappa'}</span>
           </div>
         </div>
@@ -1778,6 +1855,11 @@ function renderDayView() {
     });
   });
 
+  // wire "sposta in un altro giorno": porta con sé descrizione/note/foto/posizione/priorità/tempi
+  list.querySelectorAll('.stop-move-day-btn').forEach(el => {
+    el.addEventListener('click', () => moveStopToDay(day, el.dataset.key));
+  });
+
   // wire spostamento rapido Imperdibile <-> Facoltativa
   list.querySelectorAll('.stop-priority-quick').forEach(el => {
     el.addEventListener('click', () => {
@@ -1829,6 +1911,72 @@ function renderDayView() {
 }
 
 // ---------------- scegliere dove inserire una facoltativa promossa a imperdibile ----------------
+// ---------------- spostare una tappa in un altro giorno, portando con sé tutto quello già fatto ----------------
+function moveStopToDay(day, key) {
+  const s = getStopByKey(day, key);
+  if (!s) return;
+
+  const dayOptions = TRIP_DATA.days.map(d => `${d.id} — ${d.label || 'Giorno ' + d.id}`).join('\n');
+  const answer = prompt(`Sposta "${s.a}" in quale giorno? Scrivi il numero:\n\n${dayOptions}`, String(day.id));
+  if (answer === null) return;
+  const targetDayId = parseInt(answer.trim(), 10);
+  const targetDay = TRIP_DATA.days.find(d => d.id === targetDayId);
+  if (!targetDay) { alert('Numero di giorno non valido, non ho spostato nulla.'); return; }
+  if (targetDayId === day.id) return; // stesso giorno, niente da fare
+
+  if (!confirm(`Spostare "${s.a}" su "${targetDay.label || 'Giorno ' + targetDay.id}"? Descrizione, note, foto, posizione e priorità già impostate vengono portate con sé.`)) return;
+
+  // raccoglie tutto quello che è già stato personalizzato su questa tappa
+  const { guidaMin, visitaMin, km } = getEffectiveDurations(key, s);
+  const effPriority = getEffectivePriority(key, s);
+  const effDesc = descriptionOverrides[key] || s.descrizione || '';
+  const effNote = noteOverrides[key] || s.note || '';
+  const effMapsRaw = Object.prototype.hasOwnProperty.call(mapsOverrides, key) ? mapsOverrides[key] : null;
+  const effPhoto = photoOverrides[key] || null;
+
+  const guidaStr = `${Math.floor(guidaMin / 60)}:${String(guidaMin % 60).padStart(2, '0')}`;
+  const visitaStr = `${Math.floor(visitaMin / 60)}:${String(visitaMin % 60).padStart(2, '0')}`;
+
+  // crea la tappa "gemella" nel giorno di destinazione (in fondo; la si può poi riordinare a piacere)
+  const newKey = addCustomStop(targetDayId, {
+    a: s.a, da: '', guida: guidaStr, visita: visitaStr, km,
+    priorita: effPriority || 'Facoltativa',
+  });
+
+  if (effDesc) { descriptionOverrides[newKey] = effDesc; saveStore(STORE_KEYS.descriptionOverrides, descriptionOverrides); }
+  if (effNote) { noteOverrides[newKey] = effNote; saveStore(STORE_KEYS.noteOverrides, noteOverrides); }
+  if (effMapsRaw) { mapsOverrides[newKey] = effMapsRaw; saveStore(STORE_KEYS.mapsOverrides, mapsOverrides); }
+  saveStopOverrideData(newKey);
+  if (effPhoto) {
+    photoOverrides[newKey] = effPhoto;
+    saveStore(STORE_KEYS.photoOverrides, photoOverrides);
+    savePhotoValue(newKey, 'stop', effPhoto);
+  }
+
+  // toglie la tappa dal giorno di origine (elimina se era già una tappa aggiunta da te, altrimenti nascondi
+  // quella "originale" dell'itinerario — non si può cancellare, ma restando nascosta non compare più)
+  const wasCustom = key.startsWith('custom_');
+  if (wasCustom) {
+    deleteCustomStop(day.id, key);
+  } else {
+    setStopHidden(key, true);
+  }
+  // ripulisce le personalizzazioni della vecchia chiave, ormai trasferite alla nuova
+  delete descriptionOverrides[key]; delete noteOverrides[key]; delete priorityOverrides[key];
+  delete mapsOverrides[key]; delete photoOverrides[key]; delete durationOverrides[key];
+  saveStore(STORE_KEYS.descriptionOverrides, descriptionOverrides);
+  saveStore(STORE_KEYS.noteOverrides, noteOverrides);
+  saveStore(STORE_KEYS.priorityOverrides, priorityOverrides);
+  saveStore(STORE_KEYS.mapsOverrides, mapsOverrides);
+  saveStore(STORE_KEYS.photoOverrides, photoOverrides);
+  saveStore(STORE_KEYS.durationOverrides, durationOverrides);
+  saveStopOverrideData(key);
+  if (effPhoto) deletePhotoValue(key, 'stop');
+
+  renderDayView();
+  alert(`Fatto: "${s.a}" è ora su "${targetDay.label || 'Giorno ' + targetDay.id}", in fondo alla giornata (tra le facoltative se non avevi una priorità impostata) — riordinala con le frecce o "Rendi imperdibile" quando vuoi.`);
+}
+
 function openInsertPositionModal(day, key) {
   const merged = getMergedStops(day);
   const found = merged.find(m => m.key === key);

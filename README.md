@@ -364,6 +364,21 @@ e scroll della pagina tendono a confliggere). Le frecce ottengono lo
 stesso risultato in modo più solido — se dopo averle provate preferisci
 comunque il trascinamento, fammelo sapere e vediamo come implementarlo.
 
+## Spostare una tappa in un altro giorno
+
+Su ogni tappa trovi ora **"📅 Sposta in un altro giorno"**: scegli il
+giorno di destinazione (te li elenco tutti con il numero), confermi, e la
+tappa si sposta portando con sé **tutto** quello che avevi già fatto —
+descrizione, note, foto, posizione precisa, priorità, tempi di guida e
+km. Arriva in fondo al giorno scelto (tra le facoltative se non aveva una
+priorità impostata): la riordini con le frecce o con "Rendi imperdibile"
+(che ti farà anche scegliere il punto preciso, come già visto).
+
+**Corretti altri due punti deboli mentre ci mettevo mano**: le tappe
+aggiunte da te (incluse quelle spostate) e le tappe nascoste **non erano
+ancora sincronizzate su Firestore** — stesso rischio già visto per
+priorità e orari. Ora sono permanenti anche loro.
+
 ## Inserire una facoltativa: l'app calcola tutte le opzioni e ti consiglia la migliore
 
 Quando tocchi **"⬆️ Rendi imperdibile"** su una tappa facoltativa, non

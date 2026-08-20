@@ -294,6 +294,12 @@ button {
   color: var(--teal);
   cursor: pointer;
 }
+.stop-move-day-btn {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--navy);
+  cursor: pointer;
+}
 .day-section-title {
   margin: 20px 4px 12px;
   font-size: 0.82rem;
