@@ -364,6 +364,26 @@ e scroll della pagina tendono a confliggere). Le frecce ottengono lo
 stesso risultato in modo più solido — se dopo averle provate preferisci
 comunque il trascinamento, fammelo sapere e vediamo come implementarlo.
 
+## 🗺️ Vedi la mappa di oggi
+
+In cima a ogni giornata trovi ora **"🗺️ Vedi la mappa di oggi"**: apre
+una mappa vera con il **percorso reale** che collega tutte le tappe
+imperdibili nell'ordine attuale (calcolato con Google Maps, non una
+linea dritta), e le tappe facoltative segnate come **puntini gialli**
+separati — visibili, ma senza far parte del tracciato.
+
+Usa sempre le posizioni precise che hai già impostato ("Modifica
+posizione" su una tappa), dove presenti; altrimenti cerca il nome della
+tappa su Google Maps.
+
+**Serve un'API in più**: oltre a Directions API e Maps JavaScript API,
+questa funzione usa anche la **Geocoding API** (stessa procedura di
+prima: "API e servizi" → "Libreria" → cercala → "Abilita", e aggiungila
+alle restrizioni della chiave).
+
+Con meno di 2 tappe imperdibili nella giornata non c'è un percorso da
+tracciare — te lo segnalo con un avviso invece di mostrare una mappa vuota.
+
 ## Spostare una tappa in un altro giorno
 
 Su ogni tappa trovi ora **"📅 Sposta in un altro giorno"**: scegli il

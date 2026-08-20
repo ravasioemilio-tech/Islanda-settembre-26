@@ -1523,10 +1523,12 @@ function renderDayView() {
     ${startTimes[day.id] ? `<span class="dt-reset" id="dayStartReset">↺ ripristina orario predefinito (${DEFAULT_START_TIME})</span>` : ''}
     <div class="daytimes-actions">
       <span class="dt-add-stop" id="addStopBtn">➕ Aggiungi tappa in fondo alla giornata</span>
+      <span class="dt-add-stop" id="viewDayMapBtn">🗺️ Vedi la mappa di oggi</span>
       ${hiddenList.length ? `<span class="dt-hidden-toggle" id="hiddenStopsToggle">🙈 ${hiddenList.length} tappa/e nascosta/e — mostra</span>` : ''}
     </div>
     <div class="hidden-stops-box" id="hiddenStopsBox"></div>
   `;
+  document.getElementById('viewDayMapBtn').addEventListener('click', () => openDayMapModal(day));
   document.getElementById('dayNoteTextarea').addEventListener('blur', (e) => {
     dayNotes[day.id] = e.target.value;
     saveStore(STORE_KEYS.dayNotes, dayNotes);
@@ -1912,6 +1914,116 @@ function renderDayView() {
 
 // ---------------- scegliere dove inserire una facoltativa promossa a imperdibile ----------------
 // ---------------- spostare una tappa in un altro giorno, portando con sé tutto quello già fatto ----------------
+// ---------------- mappa della giornata: percorso reale delle imperdibili + punti delle facoltative ----------------
+let dayMapInstance = null;
+let dayMapDirRenderer = null;
+let dayMapOptionalMarkers = [];
+
+function openDayMapModal(day) {
+  const merged = getMergedStops(day);
+  const visible = merged.filter(m => !isStopHidden(m.key));
+  const mainStops = visible.filter(m => {
+    const pri = getEffectivePriority(m.key, m.stop);
+    return !(pri === 'Facoltativa' || pri === 'Da evitare');
+  });
+  const optionalStops = visible.filter(m => {
+    const pri = getEffectivePriority(m.key, m.stop);
+    return pri === 'Facoltativa' || pri === 'Da evitare';
+  });
+
+  document.getElementById('dayMapTitle').textContent = `Mappa — ${day.label || 'Giorno ' + day.id}`;
+  const statusEl = document.getElementById('dayMapStatus');
+  statusEl.textContent = '';
+  document.getElementById('dayMapModalBackdrop').classList.add('open');
+  lockBodyScroll();
+
+  if (typeof google === 'undefined' || !google.maps) {
+    statusEl.textContent = '⚠️ Libreria Google Maps non ancora caricata, riprova tra un attimo.';
+    return;
+  }
+  if (mainStops.length < 2) {
+    statusEl.textContent = '⚠️ Servono almeno 2 tappe imperdibili per tracciare un percorso su questa giornata.';
+    return;
+  }
+
+  const canvas = document.getElementById('dayMapCanvas');
+  dayMapInstance = new google.maps.Map(canvas, {
+    center: { lat: 64.9631, lng: -19.0208 }, // centro approssimativo dell'Islanda, come partenza
+    zoom: 7,
+  });
+  dayMapDirRenderer = new google.maps.DirectionsRenderer({ map: dayMapInstance, suppressMarkers: false });
+  dayMapOptionalMarkers.forEach(m => m.setMap(null));
+  dayMapOptionalMarkers = [];
+
+  statusEl.textContent = '⏳ Traccio il percorso delle imperdibili…';
+  const svc = new google.maps.DirectionsService();
+  const originStr = getEffectiveMapsDestination(day, mainStops[0].key, mainStops[0].stop);
+  const destStr = getEffectiveMapsDestination(day, mainStops[mainStops.length - 1].key, mainStops[mainStops.length - 1].stop);
+  const waypoints = mainStops.slice(1, -1).map(m => ({
+    location: getEffectiveMapsDestination(day, m.key, m.stop),
+    stopover: true,
+  }));
+
+  svc.route({
+    origin: originStr,
+    destination: destStr,
+    waypoints,
+    optimizeWaypoints: false, // mantiene l'ordine scelto in app, non lo riordina da solo
+    travelMode: google.maps.TravelMode.DRIVING,
+  }, (result, status) => {
+    if (status !== 'OK' || !result.routes.length) {
+      statusEl.textContent = `⚠️ Percorso non tracciabile (${status}) — controlla i nomi/posizioni delle tappe imperdibili.`;
+      return;
+    }
+    dayMapDirRenderer.setDirections(result);
+    statusEl.textContent = optionalStops.length ? '⏳ Posiziono le facoltative…' : '';
+    placeOptionalMarkers(day, optionalStops, statusEl);
+  });
+}
+
+function placeOptionalMarkers(day, optionalStops, statusEl) {
+  if (!optionalStops.length) { statusEl.textContent = ''; return; }
+  if (!google.maps.Geocoder) { statusEl.textContent = '⚠️ Geocoding non disponibile per posizionare le facoltative.'; return; }
+  const geocoder = new google.maps.Geocoder();
+  let done = 0;
+  optionalStops.forEach(({ key, stop }) => {
+    const addr = getEffectiveMapsDestination(day, key, stop);
+    geocoder.geocode({ address: addr }, (results, status) => {
+      done++;
+      if (status === 'OK' && results.length) {
+        const marker = new google.maps.Marker({
+          position: results[0].geometry.location,
+          map: dayMapInstance,
+          title: stop.a,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: '#e9a83c',
+            fillOpacity: 1,
+            strokeColor: '#7a5a12',
+            strokeWeight: 2,
+          },
+        });
+        dayMapOptionalMarkers.push(marker);
+      } else {
+        console.warn('Geocoding facoltativa fallito:', stop.a, status);
+      }
+      if (done === optionalStops.length) statusEl.textContent = '';
+    });
+  });
+}
+
+document.getElementById('dayMapClose').addEventListener('click', () => {
+  document.getElementById('dayMapModalBackdrop').classList.remove('open');
+  unlockBodyScroll();
+});
+document.getElementById('dayMapModalBackdrop').addEventListener('click', (e) => {
+  if (e.target.id === 'dayMapModalBackdrop') {
+    e.currentTarget.classList.remove('open');
+    unlockBodyScroll();
+  }
+});
+
 function moveStopToDay(day, key) {
   const s = getStopByKey(day, key);
   if (!s) return;
