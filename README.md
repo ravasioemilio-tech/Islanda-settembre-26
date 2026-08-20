@@ -364,6 +364,14 @@ e scroll della pagina tendono a confliggere). Le frecce ottengono lo
 stesso risultato in modo più solido — se dopo averle provate preferisci
 comunque il trascinamento, fammelo sapere e vediamo come implementarlo.
 
+**Bug corretto**: se avevi impostato la posizione di una tappa incollando
+un **link completo di Google Maps** (invece di coordinate o testo
+semplice), il calcolo del percorso falliva del tutto ("Percorso non
+tracciabile"). Ora l'app prova a **estrarre le coordinate direttamente
+dal link** quando possibile; se non ci riesce (es. link accorciati tipo
+maps.app.goo.gl), usa il nome della tappa come ripiego automatico invece
+di bloccarsi.
+
 ## 🗺️ Vedi la mappa di oggi
 
 In cima a ogni giornata trovi ora **"🗺️ Vedi la mappa di oggi"**: apre

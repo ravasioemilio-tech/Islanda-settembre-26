@@ -604,6 +604,24 @@ function getEffectiveMapsDestination(day, key, s) {
     ? mapsOverrides[key]
     : getDefaultMapsDestination(day, s);
 }
+// Come getEffectiveMapsDestination, ma pensata per essere passata a Google Directions/Geocoder:
+// quei servizi non sanno interpretare un link completo di Google Maps (solo coordinate, un
+// indirizzo testuale, o un oggetto {lat,lng}) — qui lo gestiamo, provando a estrarre le
+// coordinate anche da dentro un link se necessario, con il nome della tappa come ultima spiaggia.
+function resolveDirectionsLocation(day, key, s) {
+  const raw = getEffectiveMapsDestination(day, key, s).trim();
+  const coordMatch = raw.match(/^-?\d{1,3}(\.\d+)?\s*,\s*-?\d{1,3}(\.\d+)?$/);
+  if (coordMatch) {
+    const [lat, lng] = raw.split(',').map(v => parseFloat(v.trim()));
+    return { lat, lng };
+  }
+  if (/^https?:\/\//i.test(raw)) {
+    const m = raw.match(/(-?\d{1,3}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/);
+    if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+    return `${s.a}, Iceland`; // link senza coordinate estraibili: usa il nome come ripiego
+  }
+  return raw; // testo/indirizzo semplice, va bene così com'è
+}
 function buildMapsUrl(destination) {
   const val = destination.trim();
   if (/^https?:\/\//i.test(val)) return val; // link Google Maps incollato per intero
@@ -1804,12 +1822,12 @@ function renderDayView() {
       const statusEl = document.getElementById('teRecalcStatus_' + key);
       const found = merged.find(m => m.key === key);
       if (!found) return;
-      const destStr = getEffectiveMapsDestination(day, key, found.stop);
+      const destStr = resolveDirectionsLocation(day, key, found.stop);
 
       let originStr;
       if (predKey) {
         const predFound = merged.find(m => m.key === predKey);
-        originStr = predFound ? getEffectiveMapsDestination(day, predKey, predFound.stop) : null;
+        originStr = predFound ? resolveDirectionsLocation(day, predKey, predFound.stop) : null;
       }
       if (!originStr) originStr = getEffectiveDaForKey(day, key); // punto di partenza (prima tappa del giorno, o "da" originale)
       if (!originStr) { statusEl.textContent = '⚠️ Manca il punto di partenza'; return; }
@@ -1918,6 +1936,7 @@ function renderDayView() {
 let dayMapInstance = null;
 let dayMapDirRenderer = null;
 let dayMapOptionalMarkers = [];
+let dayMapMainMarkers = [];
 
 function openDayMapModal(day) {
   const merged = getMergedStops(day);
@@ -1951,16 +1970,18 @@ function openDayMapModal(day) {
     center: { lat: 64.9631, lng: -19.0208 }, // centro approssimativo dell'Islanda, come partenza
     zoom: 7,
   });
-  dayMapDirRenderer = new google.maps.DirectionsRenderer({ map: dayMapInstance, suppressMarkers: false });
+  dayMapDirRenderer = new google.maps.DirectionsRenderer({ map: dayMapInstance, suppressMarkers: true });
   dayMapOptionalMarkers.forEach(m => m.setMap(null));
   dayMapOptionalMarkers = [];
+  dayMapMainMarkers.forEach(m => m.setMap(null));
+  dayMapMainMarkers = [];
 
   statusEl.textContent = '⏳ Traccio il percorso delle imperdibili…';
   const svc = new google.maps.DirectionsService();
-  const originStr = getEffectiveMapsDestination(day, mainStops[0].key, mainStops[0].stop);
-  const destStr = getEffectiveMapsDestination(day, mainStops[mainStops.length - 1].key, mainStops[mainStops.length - 1].stop);
+  const originStr = resolveDirectionsLocation(day, mainStops[0].key, mainStops[0].stop);
+  const destStr = resolveDirectionsLocation(day, mainStops[mainStops.length - 1].key, mainStops[mainStops.length - 1].stop);
   const waypoints = mainStops.slice(1, -1).map(m => ({
-    location: getEffectiveMapsDestination(day, m.key, m.stop),
+    location: resolveDirectionsLocation(day, m.key, m.stop),
     stopover: true,
   }));
 
@@ -1976,6 +1997,28 @@ function openDayMapModal(day) {
       return;
     }
     dayMapDirRenderer.setDirections(result);
+
+    // marcatori verdi e numerati (1, 2, 3...) al posto delle lettere di default di Google,
+    // così coincidono con la numerazione già usata nella lista del giorno
+    const legs = result.routes[0].legs;
+    legs.forEach((leg, i) => {
+      dayMapMainMarkers.push(new google.maps.Marker({
+        position: leg.start_location,
+        map: dayMapInstance,
+        label: { text: String(i + 1), color: '#fff', fontWeight: '700', fontSize: '13px' },
+        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 15, fillColor: '#2f9e63', fillOpacity: 1, strokeColor: '#1a6b40', strokeWeight: 2 },
+        title: mainStops[i].stop.a,
+      }));
+    });
+    const lastLeg = legs[legs.length - 1];
+    dayMapMainMarkers.push(new google.maps.Marker({
+      position: lastLeg.end_location,
+      map: dayMapInstance,
+      label: { text: String(legs.length + 1), color: '#fff', fontWeight: '700', fontSize: '13px' },
+      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 15, fillColor: '#2f9e63', fillOpacity: 1, strokeColor: '#1a6b40', strokeWeight: 2 },
+      title: mainStops[mainStops.length - 1].stop.a,
+    }));
+
     statusEl.textContent = optionalStops.length ? '⏳ Posiziono le facoltative…' : '';
     placeOptionalMarkers(day, optionalStops, statusEl);
   });
@@ -1983,28 +2026,33 @@ function openDayMapModal(day) {
 
 function placeOptionalMarkers(day, optionalStops, statusEl) {
   if (!optionalStops.length) { statusEl.textContent = ''; return; }
-  if (!google.maps.Geocoder) { statusEl.textContent = '⚠️ Geocoding non disponibile per posizionare le facoltative.'; return; }
-  const geocoder = new google.maps.Geocoder();
+  const geocoder = google.maps.Geocoder ? new google.maps.Geocoder() : null;
   let done = 0;
+  const placeMarker = (position, title) => {
+    dayMapOptionalMarkers.push(new google.maps.Marker({
+      position, map: dayMapInstance, title,
+      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: '#e9a83c', fillOpacity: 1, strokeColor: '#7a5a12', strokeWeight: 2 },
+    }));
+  };
   optionalStops.forEach(({ key, stop }) => {
-    const addr = getEffectiveMapsDestination(day, key, stop);
-    geocoder.geocode({ address: addr }, (results, status) => {
+    const loc = resolveDirectionsLocation(day, key, stop);
+    if (typeof loc === 'object') {
+      // sono già coordinate: nessun bisogno di geocodificare, si piazza subito il marcatore
+      placeMarker(loc, stop.a);
+      done++;
+      if (done === optionalStops.length) statusEl.textContent = '';
+      return;
+    }
+    if (!geocoder) {
+      console.warn('Geocoding non disponibile, salto:', stop.a);
+      done++;
+      if (done === optionalStops.length) statusEl.textContent = '';
+      return;
+    }
+    geocoder.geocode({ address: loc }, (results, status) => {
       done++;
       if (status === 'OK' && results.length) {
-        const marker = new google.maps.Marker({
-          position: results[0].geometry.location,
-          map: dayMapInstance,
-          title: stop.a,
-          icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            scale: 8,
-            fillColor: '#e9a83c',
-            fillOpacity: 1,
-            strokeColor: '#7a5a12',
-            strokeWeight: 2,
-          },
-        });
-        dayMapOptionalMarkers.push(marker);
+        placeMarker(results[0].geometry.location, stop.a);
       } else {
         console.warn('Geocoding facoltativa fallito:', stop.a, status);
       }
@@ -2136,7 +2184,7 @@ function openInsertPositionModal(day, key) {
   const lastMain = mainStops[mainStops.length - 1];
   const currentLastArr = lastMain ? chain[lastMain.key].arrivo : parseHM(getStartTime(day.id));
   const { visitaMin } = getEffectiveDurations(key, found.stop);
-  const destStr = getEffectiveMapsDestination(day, key, found.stop);
+  const destStr = resolveDirectionsLocation(day, key, found.stop);
 
   const results = [];
   let done = 0;
@@ -2146,13 +2194,13 @@ function openInsertPositionModal(day, key) {
       const prevItem = candidate.afterIdx === -1 ? null : mainStops[candidate.afterIdx];
       const nextItem = candidate.afterIdx + 1 < mainStops.length ? mainStops[candidate.afterIdx + 1] : null;
       const originStr = prevItem
-        ? getEffectiveMapsDestination(day, prevItem.key, prevItem.stop)
+        ? resolveDirectionsLocation(day, prevItem.key, prevItem.stop)
         : getEffectiveDaForKey(day, mainStops.length ? mainStops[0].key : key);
 
       const legIn = await routeAsync(originStr, destStr);
       let legOut = null;
       if (legIn && nextItem) {
-        const destOutStr = getEffectiveMapsDestination(day, nextItem.key, nextItem.stop);
+        const destOutStr = resolveDirectionsLocation(day, nextItem.key, nextItem.stop);
         legOut = await routeAsync(destStr, destOutStr);
       }
 
