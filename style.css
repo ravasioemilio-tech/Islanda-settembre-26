@@ -1041,21 +1041,31 @@ button {
   line-height: 1.4;
 }
 
-/* ---------- modulo "mappa della giornata" ---------- */
-.day-map-modal {
-  max-width: 900px;
-  width: 94vw;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
+/* ---------- pannello persistente "mappa della giornata" ---------- */
+.day-map-panel {
+  margin: 10px 16px 14px;
+  padding: 14px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  position: sticky;
+  top: 8px;
+  z-index: 15;
 }
-.day-map-header {
+.day-map-panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
-.day-map-header h2 { margin: 0; }
-.day-map-header .detail-close { position: static; }
+.day-map-panel-header h3 { margin: 0; font-size: 1rem; color: var(--navy); }
+.day-map-panel-close {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--red);
+  cursor: pointer;
+  white-space: nowrap;
+}
 .day-map-legend {
   display: flex;
   gap: 16px;
@@ -1072,8 +1082,8 @@ button {
 }
 .day-map-canvas {
   width: 100%;
-  height: 60vh;
-  min-height: 320px;
+  height: 46vh;
+  min-height: 260px;
   border-radius: 12px;
   border: 1px solid var(--line);
   background: #eee;

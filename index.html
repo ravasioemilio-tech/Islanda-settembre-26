@@ -48,6 +48,18 @@
     <div class="progress-bar"><div id="progressFill" style="width:0%"></div></div>
     <div class="progress-label" id="progressLabel"></div>
   </div>
+  <div class="day-map-panel" id="dayMapPanel" style="display:none;">
+    <div class="day-map-panel-header">
+      <h3 id="dayMapPanelTitle">Mappa della giornata</h3>
+      <span class="day-map-panel-close" id="dayMapPanelClose">✕ Chiudi mappa</span>
+    </div>
+    <div class="day-map-legend">
+      <span>🟢 Imperdibili (percorso in ordine)</span>
+      <span>🟡 Facoltative (solo posizione)</span>
+    </div>
+    <div id="dayMapStatus" class="day-map-status"></div>
+    <div id="dayMapCanvas" class="day-map-canvas"></div>
+  </div>
   <div class="stops" id="stopsList"></div>
 </div>
 
@@ -161,21 +173,6 @@
       <button class="detail-close" id="searchClose">✕</button>
     </div>
     <div class="search-results" id="searchResults"></div>
-  </div>
-</div>
-
-<div class="modal-backdrop" id="dayMapModalBackdrop">
-  <div class="modal day-map-modal">
-    <div class="day-map-header">
-      <h2 id="dayMapTitle">Mappa della giornata</h2>
-      <button class="detail-close" id="dayMapClose">✕</button>
-    </div>
-    <div class="day-map-legend">
-      <span>🟢 Imperdibili (percorso in ordine)</span>
-      <span>🟡 Facoltative (solo posizione)</span>
-    </div>
-    <div id="dayMapStatus" class="day-map-status"></div>
-    <div id="dayMapCanvas" class="day-map-canvas"></div>
   </div>
 </div>
 

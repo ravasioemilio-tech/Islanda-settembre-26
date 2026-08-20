@@ -1504,6 +1504,7 @@ function renderDayTabs() {
 // ---------------- render: day meta + stops ----------------
 function renderDayView() {
   const day = TRIP_DATA.days.find(d => d.id === currentDayId);
+  if (dayMapOpenForDayId !== null && dayMapOpenForDayId !== day.id) hideDayMapPanel();
   const meta = document.getElementById('dayMeta');
   meta.innerHTML = `
     <div class="date">📅 ${day.data}</div>
@@ -1546,7 +1547,7 @@ function renderDayView() {
     </div>
     <div class="hidden-stops-box" id="hiddenStopsBox"></div>
   `;
-  document.getElementById('viewDayMapBtn').addEventListener('click', () => openDayMapModal(day));
+  document.getElementById('viewDayMapBtn').addEventListener('click', () => toggleDayMapPanel(day));
   document.getElementById('dayNoteTextarea').addEventListener('blur', (e) => {
     dayNotes[day.id] = e.target.value;
     saveStore(STORE_KEYS.dayNotes, dayNotes);
@@ -1928,17 +1929,39 @@ function renderDayView() {
   list.querySelectorAll('.stop-move-down').forEach(el => {
     el.addEventListener('click', () => moveStop(el.dataset.key, 1));
   });
+
+  // se il pannello mappa è già aperto per questo giorno, lo ridisegna con l'ordine appena aggiornato
+  if (dayMapOpenForDayId === day.id) renderDayMapPanel(day);
 }
 
-// ---------------- scegliere dove inserire una facoltativa promossa a imperdibile ----------------
-// ---------------- spostare una tappa in un altro giorno, portando con sé tutto quello già fatto ----------------
 // ---------------- mappa della giornata: percorso reale delle imperdibili + punti delle facoltative ----------------
+// Ora è un pannello persistente (non un modulo che si chiude a ogni tocco): resta aperto sopra
+// la lista delle tappe, così puoi confrontarlo mentre riordini — e si ridisegna da solo ogni
+// volta che sposti qualcosa, restando sempre coerente con l'ordine attuale.
 let dayMapInstance = null;
 let dayMapDirRenderer = null;
 let dayMapOptionalMarkers = [];
 let dayMapMainMarkers = [];
+let dayMapOpenForDayId = null;
 
-function openDayMapModal(day) {
+function toggleDayMapPanel(day) {
+  if (dayMapOpenForDayId === day.id) {
+    hideDayMapPanel();
+  } else {
+    showDayMapPanel(day);
+  }
+}
+function showDayMapPanel(day) {
+  dayMapOpenForDayId = day.id;
+  document.getElementById('dayMapPanel').style.display = '';
+  renderDayMapPanel(day);
+}
+function hideDayMapPanel() {
+  dayMapOpenForDayId = null;
+  document.getElementById('dayMapPanel').style.display = 'none';
+}
+
+function renderDayMapPanel(day) {
   const merged = getMergedStops(day);
   const visible = merged.filter(m => !isStopHidden(m.key));
   const mainStops = visible.filter(m => {
@@ -1950,11 +1973,9 @@ function openDayMapModal(day) {
     return pri === 'Facoltativa' || pri === 'Da evitare';
   });
 
-  document.getElementById('dayMapTitle').textContent = `Mappa — ${day.label || 'Giorno ' + day.id}`;
+  document.getElementById('dayMapPanelTitle').textContent = `Mappa — ${day.label || 'Giorno ' + day.id}`;
   const statusEl = document.getElementById('dayMapStatus');
   statusEl.textContent = '';
-  document.getElementById('dayMapModalBackdrop').classList.add('open');
-  lockBodyScroll();
 
   if (typeof google === 'undefined' || !google.maps) {
     statusEl.textContent = '⚠️ Libreria Google Maps non ancora caricata, riprova tra un attimo.';
@@ -2102,16 +2123,7 @@ function placeOptionalMarkers(day, optionalStops, statusEl, sharedInfoWindow) {
   });
 }
 
-document.getElementById('dayMapClose').addEventListener('click', () => {
-  document.getElementById('dayMapModalBackdrop').classList.remove('open');
-  unlockBodyScroll();
-});
-document.getElementById('dayMapModalBackdrop').addEventListener('click', (e) => {
-  if (e.target.id === 'dayMapModalBackdrop') {
-    e.currentTarget.classList.remove('open');
-    unlockBodyScroll();
-  }
-});
+document.getElementById('dayMapPanelClose').addEventListener('click', hideDayMapPanel);
 
 function moveStopToDay(day, key) {
   const s = getStopByKey(day, key);

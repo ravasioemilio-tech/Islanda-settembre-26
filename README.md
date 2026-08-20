@@ -374,11 +374,38 @@ di bloccarsi.
 
 ## 🗺️ Vedi la mappa di oggi
 
-In cima a ogni giornata trovi ora **"🗺️ Vedi la mappa di oggi"**: apre
-una mappa vera con il **percorso reale** che collega tutte le tappe
-imperdibili nell'ordine attuale (calcolato con Google Maps, non una
-linea dritta), e le tappe facoltative segnate come **puntini gialli**
-separati — visibili, ma senza far parte del tracciato.
+In cima a ogni giornata trovi **"🗺️ Vedi la mappa di oggi"**: apre un
+**pannello che resta aperto** sopra la lista delle tappe (non un modulo
+che si chiude a ogni tocco) — così puoi confrontare la mappa mentre
+riordini le tappe con le frecce ▲▼ o le sposti tra imperdibili/facoltative.
+**Si ridisegna da sola** ogni volta che cambi qualcosa, restando sempre
+coerente con l'ordine attuale. Resta visibile mentre scorri la lista
+sotto (rimane "appiccicato" in alto). Tocca **"✕ Chiudi mappa"** quando
+hai finito, oppure il pulsante "Vedi la mappa" di nuovo per nasconderla.
+Cambiando giorno, si chiude automaticamente (evita di restare aperta con
+la mappa di un altro giorno mentre guardi la lista di uno diverso).
+
+Traccia il **percorso reale** che collega tutte le tappe imperdibili
+nell'ordine attuale (calcolato con Google Maps, non una linea dritta), e
+le tappe facoltative come **puntini gialli** separati — visibili, ma
+senza far parte del tracciato.
+
+**Passa il cursore su un marcatore** (verde o giallo) per vedere il nome
+della tappa in un fumetto, senza dover aprire nient'altro.
+
+**Diagnosi automatica se il percorso non si traccia**: se il calcolo
+generale fallisce, l'app prova ogni singolo tratto (tappa per tappa) uno
+alla volta, e ti dice **esattamente quale coppia di tappe** non ha un
+percorso stradale calcolabile tra loro — molto più utile del generico
+"percorso non tracciabile" di prima. La causa più comune quando succede
+su una tappa con coordinate inserite a mano: **latitudine e longitudine
+invertite** (va sempre prima la latitudine, che per l'Islanda è un
+numero positivo intorno a 63-66; la longitudine è negativa, intorno a
+-13/-24) — oppure, come scoperto di recente, una coordinata presa da un
+punto non raggiungibile in auto (es. il punto esatto di una cascata
+invece del parcheggio): in quel caso prendi le coordinate di dove
+arriva davvero il percorso stradale su Google Maps, non del pin che
+sembra il posto giusto.
 
 Usa sempre le posizioni precise che hai già impostato ("Modifica
 posizione" su una tappa), dove presenti; altrimenti cerca il nome della
