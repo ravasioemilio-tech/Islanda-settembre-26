@@ -353,6 +353,11 @@ button {
   font-size: 0.72rem;
   color: var(--ink-soft);
   margin-top: 4px;
+  line-height: 1.5;
+}
+.progress-totals {
+  color: var(--teal);
+  font-weight: 700;
 }
 
 /* ---------- stop cards ---------- */

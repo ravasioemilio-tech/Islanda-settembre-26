@@ -372,6 +372,14 @@ dal link** quando possibile; se non ci riesce (es. link accorciati tipo
 maps.app.goo.gl), usa il nome della tappa come ripiego automatico invece
 di bloccarsi.
 
+## Totali della giornata (km, ore di guida, ore di visite)
+
+Sotto "X / Y tappe completate" trovi ora anche il riepilogo della
+giornata: **🚗 ore di guida totali · 📏 km totali · ⏱ ore di visite
+totali** — calcolati solo sulle tappe imperdibili (le uniche che contano
+davvero nella sequenza), aggiornati in automatico ogni volta che sposti
+o modifichi qualcosa.
+
 ## 🗺️ Vedi la mappa di oggi
 
 In cima a ogni giornata trovi **"🗺️ Vedi la mappa di oggi"**: apre un
@@ -386,9 +394,12 @@ Cambiando giorno, si chiude automaticamente (evita di restare aperta con
 la mappa di un altro giorno mentre guardi la lista di uno diverso).
 
 Traccia il **percorso reale** che collega tutte le tappe imperdibili
-nell'ordine attuale (calcolato con Google Maps, non una linea dritta), e
-le tappe facoltative come **puntini gialli** separati — visibili, ma
-senza far parte del tracciato.
+nell'ordine attuale (calcolato con Google Maps, non una linea dritta), le
+tappe facoltative come **puntini gialli** separati (visibili, ma senza
+far parte del tracciato), e il **punto di partenza della mattina** come
+**puntino blu** con un'icona 🏠 — di solito il pernottamento della notte
+prima, così vedi subito da dove parte la giornata rispetto al resto del
+percorso.
 
 **Passa il cursore su un marcatore** (verde o giallo) per vedere il nome
 della tappa in un fumetto, senza dover aprire nient'altro.

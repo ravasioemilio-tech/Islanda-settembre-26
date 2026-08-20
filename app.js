@@ -1594,7 +1594,22 @@ function renderDayView() {
   const doneList = doneStops[day.id] || [];
   const donePct = visible.length ? Math.round((doneList.length / visible.length) * 100) : 0;
   document.getElementById('progressFill').style.width = donePct + '%';
-  document.getElementById('progressLabel').textContent = `${doneList.length} / ${visible.length} tappe completate  ·  ${formatMin(firstDep)} → ${formatMin(lastArr)}`;
+
+  // totali della giornata: solo sulle imperdibili, le uniche che contano davvero negli orari
+  const mainStopsForTotals = visible.filter(({ key, stop }) => {
+    const pri = getEffectivePriority(key, stop);
+    return !(pri === 'Facoltativa' || pri === 'Da evitare');
+  });
+  let totalKm = 0, totalGuidaMin = 0, totalVisitaMin = 0;
+  mainStopsForTotals.forEach(({ key }) => {
+    const c = chain[key];
+    totalKm += c.km || 0;
+    totalGuidaMin += c.guidaMin || 0;
+    totalVisitaMin += c.visitaMin || 0;
+  });
+  document.getElementById('progressLabel').innerHTML =
+    `${doneList.length} / ${visible.length} tappe completate  ·  ${formatMin(firstDep)} → ${formatMin(lastArr)}` +
+    `<br><span class="progress-totals">🚗 ${formatDurationMin(totalGuidaMin)} di guida · 📏 ${Math.round(totalKm * 10) / 10} km · ⏱ ${formatDurationMin(totalVisitaMin)} di visite</span>`;
 
   const list = document.getElementById('stopsList');
   list.innerHTML = '';
