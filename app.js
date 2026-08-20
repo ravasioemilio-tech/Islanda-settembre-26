@@ -1942,6 +1942,7 @@ let dayMapInstance = null;
 let dayMapDirRenderer = null;
 let dayMapOptionalMarkers = [];
 let dayMapMainMarkers = [];
+let dayMapStartMarker = null;
 let dayMapOpenForDayId = null;
 
 function toggleDayMapPanel(day) {
@@ -1996,6 +1997,7 @@ function renderDayMapPanel(day) {
   dayMapOptionalMarkers = [];
   dayMapMainMarkers.forEach(m => m.setMap(null));
   dayMapMainMarkers = [];
+  if (dayMapStartMarker) { dayMapStartMarker.setMap(null); dayMapStartMarker = null; }
 
   statusEl.textContent = '⏳ Traccio il percorso delle imperdibili…';
   const svc = new google.maps.DirectionsService();
@@ -2051,8 +2053,35 @@ function renderDayMapPanel(day) {
     attachHover(lastMarker, `🟢 ${legs.length + 1}. ${mainStops[mainStops.length - 1].stop.a}`);
     dayMapMainMarkers.push(lastMarker);
 
+    placeStartMarker(day, mainStops[0], infoWindow);
+
     statusEl.textContent = optionalStops.length ? '⏳ Posiziono le facoltative…' : '';
     placeOptionalMarkers(day, optionalStops, statusEl, infoWindow);
+  });
+}
+
+// marcatore blu per il punto di partenza della mattina (di solito il pernottamento della notte
+// prima) — non fa parte del percorso calcolato, è solo un riferimento visivo su dove si parte
+function placeStartMarker(day, firstMainStop, infoWindow) {
+  const startLabel = getEffectiveDaForKey(day, firstMainStop.key);
+  if (!startLabel) return;
+  if (!google.maps.Geocoder) return;
+  const geocoder = new google.maps.Geocoder();
+  geocoder.geocode({ address: `${startLabel}, Iceland` }, (results, status) => {
+    if (status !== 'OK' || !results.length) {
+      console.warn('Geocoding punto di partenza fallito:', startLabel, status);
+      return;
+    }
+    dayMapStartMarker = new google.maps.Marker({
+      position: results[0].geometry.location,
+      map: dayMapInstance,
+      title: `Partenza: ${startLabel}`,
+      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: '#3468c9', fillOpacity: 1, strokeColor: '#1a3d80', strokeWeight: 2 },
+      label: { text: '🏠', fontSize: '11px' },
+      zIndex: 999, // sopra agli altri, per non restare nascosto se vicino alla prima tappa
+    });
+    dayMapStartMarker.addListener('mouseover', () => { infoWindow.setContent(`🔵 Partenza: ${startLabel}`); infoWindow.open(dayMapInstance, dayMapStartMarker); });
+    dayMapStartMarker.addListener('mouseout', () => infoWindow.close());
   });
 }
 
