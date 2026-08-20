@@ -1993,46 +1993,87 @@ function openDayMapModal(day) {
     travelMode: google.maps.TravelMode.DRIVING,
   }, (result, status) => {
     if (status !== 'OK' || !result.routes.length) {
-      statusEl.textContent = `⚠️ Percorso non tracciabile (${status}) — controlla i nomi/posizioni delle tappe imperdibili.`;
+      statusEl.textContent = `⚠️ Percorso non tracciabile (${status}) — verifico quale tratto specifico non funziona…`;
+      diagnoseFailingSegment(day, mainStops, svc, statusEl);
       return;
     }
     dayMapDirRenderer.setDirections(result);
 
     // marcatori verdi e numerati (1, 2, 3...) al posto delle lettere di default di Google,
-    // così coincidono con la numerazione già usata nella lista del giorno
+    // così coincidono con la numerazione già usata nella lista del giorno; al passaggio del
+    // cursore mostrano il nome della tappa
     const legs = result.routes[0].legs;
+    const infoWindow = new google.maps.InfoWindow();
+    const attachHover = (marker, label) => {
+      marker.addListener('mouseover', () => { infoWindow.setContent(label); infoWindow.open(dayMapInstance, marker); });
+      marker.addListener('mouseout', () => infoWindow.close());
+    };
     legs.forEach((leg, i) => {
-      dayMapMainMarkers.push(new google.maps.Marker({
+      const marker = new google.maps.Marker({
         position: leg.start_location,
         map: dayMapInstance,
         label: { text: String(i + 1), color: '#fff', fontWeight: '700', fontSize: '13px' },
         icon: { path: google.maps.SymbolPath.CIRCLE, scale: 15, fillColor: '#2f9e63', fillOpacity: 1, strokeColor: '#1a6b40', strokeWeight: 2 },
         title: mainStops[i].stop.a,
-      }));
+      });
+      attachHover(marker, `🟢 ${i + 1}. ${mainStops[i].stop.a}`);
+      dayMapMainMarkers.push(marker);
     });
     const lastLeg = legs[legs.length - 1];
-    dayMapMainMarkers.push(new google.maps.Marker({
+    const lastMarker = new google.maps.Marker({
       position: lastLeg.end_location,
       map: dayMapInstance,
       label: { text: String(legs.length + 1), color: '#fff', fontWeight: '700', fontSize: '13px' },
       icon: { path: google.maps.SymbolPath.CIRCLE, scale: 15, fillColor: '#2f9e63', fillOpacity: 1, strokeColor: '#1a6b40', strokeWeight: 2 },
       title: mainStops[mainStops.length - 1].stop.a,
-    }));
+    });
+    attachHover(lastMarker, `🟢 ${legs.length + 1}. ${mainStops[mainStops.length - 1].stop.a}`);
+    dayMapMainMarkers.push(lastMarker);
 
     statusEl.textContent = optionalStops.length ? '⏳ Posiziono le facoltative…' : '';
-    placeOptionalMarkers(day, optionalStops, statusEl);
+    placeOptionalMarkers(day, optionalStops, statusEl, infoWindow);
   });
 }
 
-function placeOptionalMarkers(day, optionalStops, statusEl) {
+// prova ogni singolo tratto (tappa N -> tappa N+1) separatamente, per capire esattamente
+// quale coppia di tappe non ha un percorso stradale calcolabile tra loro
+function diagnoseFailingSegment(day, mainStops, svc, statusEl) {
+  let i = 0;
+  const tryNext = () => {
+    if (i >= mainStops.length - 1) {
+      statusEl.textContent = '⚠️ Percorso non tracciabile, ma ogni singolo tratto risulta valido singolarmente — riprova, potrebbe essere un problema temporaneo di Google Maps.';
+      return;
+    }
+    const from = mainStops[i], to = mainStops[i + 1];
+    svc.route({
+      origin: resolveDirectionsLocation(day, from.key, from.stop),
+      destination: resolveDirectionsLocation(day, to.key, to.stop),
+      travelMode: google.maps.TravelMode.DRIVING,
+    }, (result, status) => {
+      if (status !== 'OK' || !result.routes.length) {
+        statusEl.textContent = `⚠️ Il tratto "${from.stop.a}" → "${to.stop.a}" non ha un percorso stradale calcolabile (${status}). Controlla la posizione impostata su una delle due (specialmente se hai inserito coordinate a mano: verifica di non aver invertito latitudine e longitudine).`;
+        return;
+      }
+      i++;
+      tryNext();
+    });
+  };
+  tryNext();
+}
+
+function placeOptionalMarkers(day, optionalStops, statusEl, sharedInfoWindow) {
   if (!optionalStops.length) { statusEl.textContent = ''; return; }
   const geocoder = google.maps.Geocoder ? new google.maps.Geocoder() : null;
+  const infoWindow = sharedInfoWindow || new google.maps.InfoWindow();
   let done = 0;
   const placeMarker = (position, title) => {
-    dayMapOptionalMarkers.push(new google.maps.Marker({
+    const marker = new google.maps.Marker({
       position, map: dayMapInstance, title,
       icon: { path: google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: '#e9a83c', fillOpacity: 1, strokeColor: '#7a5a12', strokeWeight: 2 },
-    }));
+    });
+    marker.addListener('mouseover', () => { infoWindow.setContent(`🟡 ${title}`); infoWindow.open(dayMapInstance, marker); });
+    marker.addListener('mouseout', () => infoWindow.close());
+    dayMapOptionalMarkers.push(marker);
   };
   optionalStops.forEach(({ key, stop }) => {
     const loc = resolveDirectionsLocation(day, key, stop);
