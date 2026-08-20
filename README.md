@@ -364,6 +364,26 @@ e scroll della pagina tendono a confliggere). Le frecce ottengono lo
 stesso risultato in modo più solido — se dopo averle provate preferisci
 comunque il trascinamento, fammelo sapere e vediamo come implementarlo.
 
+## Inserire una facoltativa: l'app propone dove e ti dice le conseguenze
+
+Quando tocchi **"⬆️ Rendi imperdibile"** su una tappa facoltativa, non
+viene più inserita "a caso" — si apre una scelta guidata:
+
+1. Ti mostra l'elenco dei punti possibili ("All'inizio della giornata",
+   "Dopo [tappa]" per ognuna delle imperdibili attuali)
+2. Tocchi un punto candidato → l'app calcola **con Google Maps** sia il
+   tragitto per arrivarci sia quello per ripartire verso la tappa dopo
+   (quello cambia, perché ora si parte da un posto diverso)
+3. Ti mostra: minuti e km per entrambi i tragitti, quanto tempo si
+   aggiunge in totale alla giornata, e il **nuovo orario di arrivo in
+   serata stimato** (confrontato con quello attuale)
+4. Se ti torna bene, tocchi "Conferma qui" — altrimenti provi un altro
+   punto della lista, senza che nulla venga ancora salvato
+
+Alla conferma, l'app sistema da sola: la priorità, l'ordine, i tempi di
+guida/km sia della tappa promossa sia di quella successiva (il cui
+tragitto di arrivo è cambiato) — tutto sincronizzato su Firestore.
+
 ## 🧭 Ricalcolo automatico di km e tempo con Google Maps
 
 In "✏️ orari" trovi ora **"🧭 Ricalcola con Google Maps"**: calcola in

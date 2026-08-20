@@ -1783,6 +1783,11 @@ function renderDayView() {
     el.addEventListener('click', () => {
       const key = el.dataset.key;
       const newPri = el.dataset.newpri;
+      if (newPri === 'Imperdibile') {
+        // promuovere una facoltativa richiede di scegliere DOVE inserirla: apre il modulo dedicato
+        openInsertPositionModal(day, key);
+        return;
+      }
       const merged2 = getMergedStops(day);
       const found = merged2.find(m => m.key === key);
       if (!found) return;
@@ -1822,6 +1827,163 @@ function renderDayView() {
     el.addEventListener('click', () => moveStop(el.dataset.key, 1));
   });
 }
+
+// ---------------- scegliere dove inserire una facoltativa promossa a imperdibile ----------------
+function openInsertPositionModal(day, key) {
+  const merged = getMergedStops(day);
+  const found = merged.find(m => m.key === key);
+  if (!found) return;
+  const stopName = found.stop.a;
+
+  const visible = merged.filter(m => !isStopHidden(m.key));
+  const mainStops = visible.filter(m => {
+    const pri = getEffectivePriority(m.key, m.stop);
+    return !(pri === 'Facoltativa' || pri === 'Da evitare');
+  });
+
+  document.getElementById('ipmTitle').textContent = `Dove inserire "${stopName}"?`;
+  const listEl = document.getElementById('ipmList');
+  const previewEl = document.getElementById('ipmPreview');
+  const confirmBtn = document.getElementById('ipmConfirm');
+  previewEl.style.display = 'none';
+  confirmBtn.style.display = 'none';
+
+  // candidati: "all'inizio della giornata" + "dopo ciascuna imperdibile attuale" (l'ultima = in fondo)
+  const candidates = [{ label: `📍 All'inizio della giornata`, afterIdx: -1 }];
+  mainStops.forEach((m, i) => candidates.push({ label: `Dopo "${m.stop.a}"`, afterIdx: i }));
+
+  listEl.innerHTML = candidates.map((c, i) => `<div class="ipm-candidate" data-idx="${i}">${c.label}</div>`).join('');
+
+  listEl.querySelectorAll('.ipm-candidate').forEach((el, i) => {
+    el.addEventListener('click', () => {
+      listEl.querySelectorAll('.ipm-candidate').forEach(x => x.classList.remove('selected'));
+      el.classList.add('selected');
+      computePreview(candidates[i]);
+    });
+  });
+
+  function computePreview(candidate) {
+    previewEl.style.display = 'block';
+    confirmBtn.style.display = 'none';
+    previewEl.innerHTML = '⏳ Calcolo in corso con Google Maps…';
+
+    if (typeof google === 'undefined' || !google.maps || !google.maps.DirectionsService) {
+      previewEl.innerHTML = '⚠️ Libreria Google Maps non ancora caricata, riprova tra un attimo.';
+      return;
+    }
+
+    const prevItem = candidate.afterIdx === -1 ? null : mainStops[candidate.afterIdx];
+    const nextItem = candidate.afterIdx + 1 < mainStops.length ? mainStops[candidate.afterIdx + 1] : null;
+    const originStr = prevItem
+      ? getEffectiveMapsDestination(day, prevItem.key, prevItem.stop)
+      : getEffectiveDaForKey(day, mainStops.length ? mainStops[0].key : key);
+    const destStr = getEffectiveMapsDestination(day, key, found.stop);
+    const svc = new google.maps.DirectionsService();
+
+    svc.route({ origin: originStr, destination: destStr, travelMode: google.maps.TravelMode.DRIVING }, (resultIn, statusIn) => {
+      if (statusIn !== 'OK' || !resultIn.routes.length) {
+        previewEl.innerHTML = `⚠️ Percorso di andata non trovato (${statusIn}) — prova un altro punto o inseriscila a mano.`;
+        return;
+      }
+      const legIn = resultIn.routes[0].legs[0];
+      const guidaInMin = Math.round(legIn.duration.value / 60);
+      const kmIn = Math.round(legIn.distance.value / 100) / 10;
+      const { visitaMin } = getEffectiveDurations(key, found.stop);
+
+      if (!nextItem) {
+        showPreviewResult(candidate, guidaInMin, kmIn, visitaMin, null, null);
+        return;
+      }
+      const destOutStr = getEffectiveMapsDestination(day, nextItem.key, nextItem.stop);
+      svc.route({ origin: destStr, destination: destOutStr, travelMode: google.maps.TravelMode.DRIVING }, (resultOut, statusOut) => {
+        if (statusOut !== 'OK' || !resultOut.routes.length) {
+          previewEl.innerHTML = `⚠️ Percorso verso la tappa successiva non trovato (${statusOut}) — prova un altro punto o inseriscila a mano.`;
+          return;
+        }
+        const legOut = resultOut.routes[0].legs[0];
+        const guidaOutMin = Math.round(legOut.duration.value / 60);
+        const kmOut = Math.round(legOut.distance.value / 100) / 10;
+        showPreviewResult(candidate, guidaInMin, kmIn, visitaMin, guidaOutMin, kmOut);
+      });
+    });
+  }
+
+  function showPreviewResult(candidate, guidaInMin, kmIn, visitaMin, guidaOutMin, kmOut) {
+    const chain = computeDayChain(day);
+    const nextItem = candidate.afterIdx + 1 < mainStops.length ? mainStops[candidate.afterIdx + 1] : null;
+
+    let deltaOutMin = 0;
+    if (nextItem && guidaOutMin !== null) {
+      const oldGuidaOut = getEffectiveDurations(nextItem.key, nextItem.stop).guidaMin;
+      deltaOutMin = guidaOutMin - oldGuidaOut;
+    }
+    const totalDelta = guidaInMin + visitaMin + deltaOutMin;
+
+    const lastMain = mainStops[mainStops.length - 1];
+    const currentLastArr = lastMain ? chain[lastMain.key].arrivo : parseHM(getStartTime(day.id));
+    const newLastArr = currentLastArr + totalDelta;
+
+    previewEl.innerHTML = `
+      <div class="ipm-result">
+        🚗 ${guidaInMin} min · ${kmIn} km per arrivarci &nbsp;·&nbsp; ⏱ ${visitaMin} min di visita
+        ${guidaOutMin !== null ? `<br>🚗 ${guidaOutMin} min · ${kmOut} km per ripartire verso la tappa dopo (${deltaOutMin >= 0 ? '+' : ''}${deltaOutMin} min rispetto a prima)` : '<br><em>È l\'ultima tappa del giorno, nessun tragitto dopo da ricalcolare.</em>'}
+        <div class="ipm-result-total">
+          Tempo totale aggiunto alla giornata: <b>${totalDelta >= 0 ? '+' : ''}${totalDelta} min</b><br>
+          🌙 Nuovo arrivo in serata stimato: <b>${formatMin(newLastArr)}</b> <span class="ipm-was">(era ${formatMin(currentLastArr)})</span>
+        </div>
+      </div>
+    `;
+    confirmBtn.style.display = '';
+    confirmBtn.onclick = () => applyInsertion(candidate, guidaInMin, kmIn, guidaOutMin, kmOut, nextItem);
+  }
+
+  function applyInsertion(candidate, guidaInMin, kmIn, guidaOutMin, kmOut, nextItem) {
+    priorityOverrides[key] = 'Imperdibile';
+    saveStore(STORE_KEYS.priorityOverrides, priorityOverrides);
+
+    const { visitaMin } = getEffectiveDurations(key, found.stop);
+    durationOverrides[key] = { guida: guidaInMin, km: kmIn, visita: visitaMin };
+    saveStore(STORE_KEYS.durationOverrides, durationOverrides);
+    saveStopOverrideData(key);
+
+    if (nextItem && guidaOutMin !== null) {
+      const nextDur = getEffectiveDurations(nextItem.key, nextItem.stop);
+      durationOverrides[nextItem.key] = { guida: guidaOutMin, km: kmOut, visita: nextDur.visitaMin };
+      saveStore(STORE_KEYS.durationOverrides, durationOverrides);
+      saveStopOverrideData(nextItem.key);
+    }
+
+    const newMainOrder = mainStops.map(m => m.key);
+    newMainOrder.splice(candidate.afterIdx + 1, 0, key);
+    const optionalKeys = visible
+      .filter(m => {
+        const pri = getEffectivePriority(m.key, m.stop);
+        return (pri === 'Facoltativa' || pri === 'Da evitare') && m.key !== key;
+      })
+      .map(m => m.key);
+    const hiddenKeys = merged.map(m => m.key).filter(k => isStopHidden(k));
+    stopOrderByDay[day.id] = newMainOrder.concat(optionalKeys, hiddenKeys);
+    saveStore(STORE_KEYS.stopOrder, stopOrderByDay);
+    saveStopOrder(day.id);
+
+    document.getElementById('insertPositionModalBackdrop').classList.remove('open');
+    unlockBodyScroll();
+    renderDayView();
+  }
+
+  document.getElementById('insertPositionModalBackdrop').classList.add('open');
+  lockBodyScroll();
+}
+document.getElementById('ipmCancel').addEventListener('click', () => {
+  document.getElementById('insertPositionModalBackdrop').classList.remove('open');
+  unlockBodyScroll();
+});
+document.getElementById('insertPositionModalBackdrop').addEventListener('click', (e) => {
+  if (e.target.id === 'insertPositionModalBackdrop') {
+    e.currentTarget.classList.remove('open');
+    unlockBodyScroll();
+  }
+});
 
 // ---------------- aggiungi una nuova tappa in fondo alla giornata ----------------
 function openAddStopModal(day) {

@@ -1035,6 +1035,50 @@ button {
   line-height: 1.4;
 }
 
+/* ---------- modulo "dove inserire una facoltativa" ---------- */
+.ipm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 34vh;
+  overflow-y: auto;
+  margin-bottom: 4px;
+}
+.ipm-candidate {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 0.86rem;
+  color: var(--ink);
+  cursor: pointer;
+}
+.ipm-candidate:active { background: var(--teal-light); }
+.ipm-candidate.selected {
+  background: var(--teal-light);
+  border-color: var(--teal);
+  font-weight: 700;
+  color: var(--teal);
+}
+.ipm-preview {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #fbfbf7;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 0.84rem;
+  color: var(--ink);
+  line-height: 1.5;
+}
+.ipm-result-total {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+.ipm-was {
+  color: var(--ink-soft);
+  font-weight: 400;
+}
+
 /* ---------- vista Utili ---------- */
 .useful-links-grid {
   display: flex;
