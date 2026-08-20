@@ -1848,100 +1848,132 @@ function openInsertPositionModal(day, key) {
   previewEl.style.display = 'none';
   confirmBtn.style.display = 'none';
 
-  // candidati: "all'inizio della giornata" + "dopo ciascuna imperdibile attuale" (l'ultima = in fondo)
+  if (typeof google === 'undefined' || !google.maps || !google.maps.DirectionsService) {
+    listEl.innerHTML = `<div class="ipm-hint-error">⚠️ Libreria Google Maps non ancora caricata, riprova tra un attimo.</div>`;
+    document.getElementById('insertPositionModalBackdrop').classList.add('open');
+    lockBodyScroll();
+    return;
+  }
+
+  // candidati: "all'inizio della giornata" + "dopo ciascuna imperdibile attuale" (l'ultimo = in fondo)
   const candidates = [{ label: `📍 All'inizio della giornata`, afterIdx: -1 }];
   mainStops.forEach((m, i) => candidates.push({ label: `Dopo "${m.stop.a}"`, afterIdx: i }));
 
-  listEl.innerHTML = candidates.map((c, i) => `<div class="ipm-candidate" data-idx="${i}">${c.label}</div>`).join('');
+  listEl.innerHTML = `<div class="ipm-progress" id="ipmProgress">⏳ Calcolo tutte le opzioni con Google Maps (0/${candidates.length})…</div>`;
+  document.getElementById('insertPositionModalBackdrop').classList.add('open');
+  lockBodyScroll();
 
-  listEl.querySelectorAll('.ipm-candidate').forEach((el, i) => {
-    el.addEventListener('click', () => {
-      listEl.querySelectorAll('.ipm-candidate').forEach(x => x.classList.remove('selected'));
-      el.classList.add('selected');
-      computePreview(candidates[i]);
+  const svc = new google.maps.DirectionsService();
+  const routeAsync = (originStr, destStr) => new Promise((resolve) => {
+    svc.route({ origin: originStr, destination: destStr, travelMode: google.maps.TravelMode.DRIVING }, (result, status) => {
+      if (status !== 'OK' || !result.routes.length) { resolve(null); return; }
+      const leg = result.routes[0].legs[0];
+      resolve({ min: Math.round(leg.duration.value / 60), km: Math.round(leg.distance.value / 100) / 10 });
     });
   });
 
-  function computePreview(candidate) {
-    previewEl.style.display = 'block';
-    confirmBtn.style.display = 'none';
-    previewEl.innerHTML = '⏳ Calcolo in corso con Google Maps…';
+  const chain = computeDayChain(day);
+  const lastMain = mainStops[mainStops.length - 1];
+  const currentLastArr = lastMain ? chain[lastMain.key].arrivo : parseHM(getStartTime(day.id));
+  const { visitaMin } = getEffectiveDurations(key, found.stop);
+  const destStr = getEffectiveMapsDestination(day, key, found.stop);
 
-    if (typeof google === 'undefined' || !google.maps || !google.maps.DirectionsService) {
-      previewEl.innerHTML = '⚠️ Libreria Google Maps non ancora caricata, riprova tra un attimo.';
-      return;
-    }
+  const results = [];
+  let done = 0;
 
-    const prevItem = candidate.afterIdx === -1 ? null : mainStops[candidate.afterIdx];
-    const nextItem = candidate.afterIdx + 1 < mainStops.length ? mainStops[candidate.afterIdx + 1] : null;
-    const originStr = prevItem
-      ? getEffectiveMapsDestination(day, prevItem.key, prevItem.stop)
-      : getEffectiveDaForKey(day, mainStops.length ? mainStops[0].key : key);
-    const destStr = getEffectiveMapsDestination(day, key, found.stop);
-    const svc = new google.maps.DirectionsService();
+  (async () => {
+    for (const candidate of candidates) {
+      const prevItem = candidate.afterIdx === -1 ? null : mainStops[candidate.afterIdx];
+      const nextItem = candidate.afterIdx + 1 < mainStops.length ? mainStops[candidate.afterIdx + 1] : null;
+      const originStr = prevItem
+        ? getEffectiveMapsDestination(day, prevItem.key, prevItem.stop)
+        : getEffectiveDaForKey(day, mainStops.length ? mainStops[0].key : key);
 
-    svc.route({ origin: originStr, destination: destStr, travelMode: google.maps.TravelMode.DRIVING }, (resultIn, statusIn) => {
-      if (statusIn !== 'OK' || !resultIn.routes.length) {
-        previewEl.innerHTML = `⚠️ Percorso di andata non trovato (${statusIn}) — prova un altro punto o inseriscila a mano.`;
-        return;
+      const legIn = await routeAsync(originStr, destStr);
+      let legOut = null;
+      if (legIn && nextItem) {
+        const destOutStr = getEffectiveMapsDestination(day, nextItem.key, nextItem.stop);
+        legOut = await routeAsync(destStr, destOutStr);
       }
-      const legIn = resultIn.routes[0].legs[0];
-      const guidaInMin = Math.round(legIn.duration.value / 60);
-      const kmIn = Math.round(legIn.distance.value / 100) / 10;
-      const { visitaMin } = getEffectiveDurations(key, found.stop);
 
-      if (!nextItem) {
-        showPreviewResult(candidate, guidaInMin, kmIn, visitaMin, null, null);
-        return;
-      }
-      const destOutStr = getEffectiveMapsDestination(day, nextItem.key, nextItem.stop);
-      svc.route({ origin: destStr, destination: destOutStr, travelMode: google.maps.TravelMode.DRIVING }, (resultOut, statusOut) => {
-        if (statusOut !== 'OK' || !resultOut.routes.length) {
-          previewEl.innerHTML = `⚠️ Percorso verso la tappa successiva non trovato (${statusOut}) — prova un altro punto o inseriscila a mano.`;
-          return;
+      if (legIn && (!nextItem || legOut)) {
+        let deltaOutMin = 0;
+        if (nextItem && legOut) {
+          const oldGuidaOut = getEffectiveDurations(nextItem.key, nextItem.stop).guidaMin;
+          deltaOutMin = legOut.min - oldGuidaOut;
         }
-        const legOut = resultOut.routes[0].legs[0];
-        const guidaOutMin = Math.round(legOut.duration.value / 60);
-        const kmOut = Math.round(legOut.distance.value / 100) / 10;
-        showPreviewResult(candidate, guidaInMin, kmIn, visitaMin, guidaOutMin, kmOut);
+        const totalDelta = legIn.min + visitaMin + deltaOutMin;
+        results.push({ candidate, nextItem, guidaInMin: legIn.min, kmIn: legIn.km, guidaOutMin: legOut ? legOut.min : null, kmOut: legOut ? legOut.km : null, deltaOutMin, totalDelta, newLastArr: currentLastArr + totalDelta });
+      } else {
+        results.push({ candidate, error: true });
+      }
+      done++;
+      const progressEl = document.getElementById('ipmProgress');
+      if (progressEl) progressEl.textContent = `⏳ Calcolo tutte le opzioni con Google Maps (${done}/${candidates.length})…`;
+    }
+    renderResults();
+  })();
+
+  function renderResults() {
+    const ok = results.filter(r => !r.error);
+    ok.sort((a, b) => a.totalDelta - b.totalDelta);
+    const bestKey = ok.length ? ok[0].candidate.afterIdx : null;
+    // mantieni l'ordine originale (dall'inizio della giornata in poi) ma segnala la migliore
+    const displayOrder = results.slice().sort((a, b) => a.candidate.afterIdx - b.candidate.afterIdx);
+
+    listEl.innerHTML = displayOrder.map(r => {
+      if (r.error) {
+        return `<div class="ipm-candidate ipm-candidate-error" data-idx="${r.candidate.afterIdx}">${r.candidate.label} — <em>percorso non trovato</em></div>`;
+      }
+      const isBest = r.candidate.afterIdx === bestKey;
+      return `
+        <div class="ipm-candidate${isBest ? ' ipm-recommended' : ''}" data-idx="${r.candidate.afterIdx}">
+          <div class="ipm-candidate-label">${isBest ? '🌟 ' : ''}${r.candidate.label}${isBest ? ' <span class="ipm-badge">Consigliata</span>' : ''}</div>
+          <div class="ipm-candidate-sub">+${r.totalDelta} min in totale · arrivo stimato ${formatMin(r.newLastArr)}</div>
+        </div>
+      `;
+    }).join('');
+
+    listEl.querySelectorAll('.ipm-candidate:not(.ipm-candidate-error)').forEach(el => {
+      el.addEventListener('click', () => {
+        listEl.querySelectorAll('.ipm-candidate').forEach(x => x.classList.remove('selected'));
+        el.classList.add('selected');
+        const idx = parseInt(el.dataset.idx, 10);
+        const r = results.find(x => x.candidate.afterIdx === idx);
+        showPreviewResult(r);
       });
     });
+
+    if (ok.length) {
+      // seleziona subito la consigliata, così l'utente vede la scheda pronta senza dover toccare nulla
+      const bestEl = listEl.querySelector('.ipm-recommended');
+      if (bestEl) {
+        bestEl.classList.add('selected');
+        showPreviewResult(ok[0]);
+      }
+    }
   }
 
-  function showPreviewResult(candidate, guidaInMin, kmIn, visitaMin, guidaOutMin, kmOut) {
-    const chain = computeDayChain(day);
-    const nextItem = candidate.afterIdx + 1 < mainStops.length ? mainStops[candidate.afterIdx + 1] : null;
-
-    let deltaOutMin = 0;
-    if (nextItem && guidaOutMin !== null) {
-      const oldGuidaOut = getEffectiveDurations(nextItem.key, nextItem.stop).guidaMin;
-      deltaOutMin = guidaOutMin - oldGuidaOut;
-    }
-    const totalDelta = guidaInMin + visitaMin + deltaOutMin;
-
-    const lastMain = mainStops[mainStops.length - 1];
-    const currentLastArr = lastMain ? chain[lastMain.key].arrivo : parseHM(getStartTime(day.id));
-    const newLastArr = currentLastArr + totalDelta;
-
+  function showPreviewResult(r) {
+    previewEl.style.display = 'block';
     previewEl.innerHTML = `
       <div class="ipm-result">
-        🚗 ${guidaInMin} min · ${kmIn} km per arrivarci &nbsp;·&nbsp; ⏱ ${visitaMin} min di visita
-        ${guidaOutMin !== null ? `<br>🚗 ${guidaOutMin} min · ${kmOut} km per ripartire verso la tappa dopo (${deltaOutMin >= 0 ? '+' : ''}${deltaOutMin} min rispetto a prima)` : '<br><em>È l\'ultima tappa del giorno, nessun tragitto dopo da ricalcolare.</em>'}
+        🚗 ${r.guidaInMin} min · ${r.kmIn} km per arrivarci &nbsp;·&nbsp; ⏱ ${visitaMin} min di visita
+        ${r.guidaOutMin !== null ? `<br>🚗 ${r.guidaOutMin} min · ${r.kmOut} km per ripartire verso la tappa dopo (${r.deltaOutMin >= 0 ? '+' : ''}${r.deltaOutMin} min rispetto a prima)` : '<br><em>È l\'ultima tappa del giorno, nessun tragitto dopo da ricalcolare.</em>'}
         <div class="ipm-result-total">
-          Tempo totale aggiunto alla giornata: <b>${totalDelta >= 0 ? '+' : ''}${totalDelta} min</b><br>
-          🌙 Nuovo arrivo in serata stimato: <b>${formatMin(newLastArr)}</b> <span class="ipm-was">(era ${formatMin(currentLastArr)})</span>
+          Tempo totale aggiunto alla giornata: <b>${r.totalDelta >= 0 ? '+' : ''}${r.totalDelta} min</b><br>
+          🌙 Nuovo arrivo in serata stimato: <b>${formatMin(r.newLastArr)}</b> <span class="ipm-was">(era ${formatMin(currentLastArr)})</span>
         </div>
       </div>
     `;
     confirmBtn.style.display = '';
-    confirmBtn.onclick = () => applyInsertion(candidate, guidaInMin, kmIn, guidaOutMin, kmOut, nextItem);
+    confirmBtn.onclick = () => applyInsertion(r.candidate, r.guidaInMin, r.kmIn, r.guidaOutMin, r.kmOut, r.nextItem);
   }
 
   function applyInsertion(candidate, guidaInMin, kmIn, guidaOutMin, kmOut, nextItem) {
     priorityOverrides[key] = 'Imperdibile';
     saveStore(STORE_KEYS.priorityOverrides, priorityOverrides);
 
-    const { visitaMin } = getEffectiveDurations(key, found.stop);
     durationOverrides[key] = { guida: guidaInMin, km: kmIn, visita: visitaMin };
     saveStore(STORE_KEYS.durationOverrides, durationOverrides);
     saveStopOverrideData(key);
@@ -1970,9 +2002,6 @@ function openInsertPositionModal(day, key) {
     unlockBodyScroll();
     renderDayView();
   }
-
-  document.getElementById('insertPositionModalBackdrop').classList.add('open');
-  lockBodyScroll();
 }
 document.getElementById('ipmCancel').addEventListener('click', () => {
   document.getElementById('insertPositionModalBackdrop').classList.remove('open');

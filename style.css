@@ -1056,8 +1056,43 @@ button {
 .ipm-candidate.selected {
   background: var(--teal-light);
   border-color: var(--teal);
-  font-weight: 700;
-  color: var(--teal);
+}
+.ipm-candidate-label { font-weight: 600; }
+.ipm-candidate.selected .ipm-candidate-label { color: var(--teal); font-weight: 700; }
+.ipm-candidate-sub {
+  font-size: 0.74rem;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+.ipm-recommended {
+  border-color: var(--gold);
+  background: var(--gold-light);
+}
+.ipm-badge {
+  display: inline-block;
+  background: var(--gold);
+  color: #2b2205;
+  font-size: 0.66rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-left: 4px;
+}
+.ipm-candidate-error {
+  color: var(--ink-soft);
+  cursor: default;
+  font-style: italic;
+}
+.ipm-progress {
+  padding: 20px 4px;
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+.ipm-hint-error {
+  padding: 16px 4px;
+  color: var(--red);
+  font-size: 0.85rem;
 }
 .ipm-preview {
   margin-top: 10px;
