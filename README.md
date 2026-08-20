@@ -364,6 +364,23 @@ e scroll della pagina tendono a confliggere). Le frecce ottengono lo
 stesso risultato in modo più solido — se dopo averle provate preferisci
 comunque il trascinamento, fammelo sapere e vediamo come implementarlo.
 
+## 🧭 Ricalcolo automatico di km e tempo con Google Maps
+
+In "✏️ orari" trovi ora **"🧭 Ricalcola con Google Maps"**: calcola in
+automatico il tempo di guida e i km reali dalla tappa precedente (quella
+effettivamente prima nell'ordine attuale, la stessa logica del "da" che
+si aggiorna da solo), usando il servizio ufficiale di Google. Il
+risultato riempie i campi Guida e Km — controllalo e tocca "Applica" per
+salvarlo (non si salva da solo, così puoi verificare prima).
+
+Se il percorso non viene trovato (nome poco chiaro, luogo isolato),
+compare un avviso: in quel caso inserisci il tempo a mano come prima.
+
+**Nota tecnica per chi è curioso**: uso la libreria ufficiale di Google
+Maps per il browser, non l'API "classica" a chiamata diretta — quella
+darebbe un errore di sicurezza (CORS) in un'app che gira solo nel
+browser come questa, senza un server dietro.
+
 ## Km modificabili, e l'orario di partenza ora è permanente
 
 In "✏️ orari" trovi ora anche il campo **Km**, modificabile insieme a

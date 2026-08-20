@@ -1586,11 +1586,15 @@ function renderDayView() {
             </div>
             <div class="te-row">
               <label>Km</label>
-              <input type="number" min="0" step="1" class="te-km" value="${s.km || 0}">
+              <input type="number" min="0" step="1" class="te-km" value="${effectiveKm}">
             </div>
             <div class="te-row">
               <label>Visita (min)</label>
               <input type="number" min="0" step="1" class="te-visita" value="${visitaMin}">
+            </div>
+            <div class="te-recalc-row">
+              <span class="te-recalc-btn" data-key="${key}" data-predkey="${predKeyForWarning || ''}">🧭 Ricalcola con Google Maps</span>
+              <span class="te-recalc-status" id="teRecalcStatus_${key}"></span>
             </div>
             <div class="te-actions">
               <button class="te-apply" data-key="${key}">Applica</button>
@@ -1710,6 +1714,50 @@ function renderDayView() {
       saveStore(STORE_KEYS.durationOverrides, durationOverrides);
       renderDayView();
       saveStopOverrideData(key);
+    });
+  });
+
+  // wire ricalcolo automatico km/guida con Google Maps (Directions, via libreria JS: niente CORS)
+  list.querySelectorAll('.te-recalc-btn').forEach(el => {
+    el.addEventListener('click', () => {
+      const key = el.dataset.key;
+      const predKey = el.dataset.predkey;
+      const statusEl = document.getElementById('teRecalcStatus_' + key);
+      const found = merged.find(m => m.key === key);
+      if (!found) return;
+      const destStr = getEffectiveMapsDestination(day, key, found.stop);
+
+      let originStr;
+      if (predKey) {
+        const predFound = merged.find(m => m.key === predKey);
+        originStr = predFound ? getEffectiveMapsDestination(day, predKey, predFound.stop) : null;
+      }
+      if (!originStr) originStr = getEffectiveDaForKey(day, key); // punto di partenza (prima tappa del giorno, o "da" originale)
+      if (!originStr) { statusEl.textContent = '⚠️ Manca il punto di partenza'; return; }
+
+      if (typeof google === 'undefined' || !google.maps || !google.maps.DirectionsService) {
+        statusEl.textContent = '⚠️ Libreria Google Maps non ancora caricata, riprova tra un attimo';
+        return;
+      }
+      statusEl.textContent = '⏳ Calcolo in corso…';
+      const svc = new google.maps.DirectionsService();
+      svc.route({
+        origin: originStr,
+        destination: destStr,
+        travelMode: google.maps.TravelMode.DRIVING,
+      }, (result, status) => {
+        if (status !== 'OK' || !result.routes.length) {
+          statusEl.textContent = `⚠️ Percorso non trovato (${status}) — inseriscilo a mano`;
+          return;
+        }
+        const leg = result.routes[0].legs[0];
+        const km = Math.round(leg.distance.value / 100) / 10; // metri -> km con 1 decimale
+        const minuti = Math.round(leg.duration.value / 60);
+        const box = list.querySelector(`.stop-timeedit[data-key="${key}"]`);
+        box.querySelector('.te-guida').value = minuti;
+        box.querySelector('.te-km').value = km;
+        statusEl.textContent = `✅ ${minuti} min · ${km} km — tocca "Applica" per salvare`;
+      });
     });
   });
 
