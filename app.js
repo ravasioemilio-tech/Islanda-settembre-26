@@ -134,6 +134,41 @@ if (typeof db !== 'undefined' && db) {
   });
 }
 
+// ---------------- sincronizzazione orario di partenza mattutina (Firestore, se disponibile) ----------------
+function saveStartTime(dayId) {
+  if (typeof db === 'undefined' || !db) return;
+  const docId = firestoreSafeDocId('starttime_' + dayId);
+  if (startTimes[dayId] === undefined) {
+    db.collection('sharedStartTimes').doc(docId).delete().catch((err) => console.warn('Eliminazione orario partenza fallita:', err));
+    return;
+  }
+  db.collection('sharedStartTimes').doc(docId).set({ dayId: String(dayId), time: startTimes[dayId] }).catch((err) => {
+    console.warn('Salvataggio orario partenza su Firestore fallito:', err);
+    alert(`⚠️ L'orario di partenza NON è stato salvato in modo permanente (resta solo su questo dispositivo). Errore: ${err.code || err.message || err}`);
+  });
+}
+if (typeof db !== 'undefined' && db) {
+  let startTimesFirstSync = true;
+  db.collection('sharedStartTimes').onSnapshot((snapshot) => {
+    const remote = {};
+    snapshot.docs.forEach(doc => {
+      const d = doc.data();
+      if (d && d.dayId !== undefined) remote[d.dayId] = d.time;
+    });
+    if (startTimesFirstSync) {
+      startTimesFirstSync = false;
+      Object.keys(startTimes).forEach(dayId => { if (!(dayId in remote)) saveStartTime(dayId); });
+    }
+    startTimes = remote;
+    saveStore(STORE_KEYS.startTimes, startTimes);
+    if (typeof currentDayId !== 'undefined' && typeof renderDayView === 'function' && typeof currentView !== 'undefined' && currentView === 'days') {
+      renderDayView();
+    }
+  }, (err) => {
+    console.warn('Firestore (orari partenza) non raggiungibile, uso la copia locale:', err);
+  });
+}
+
 let descriptionOverrides = loadStore(STORE_KEYS.descriptionOverrides, {}); // { "1_0": "testo modificato dall'utente", ... }
 let noteOverrides = loadStore(STORE_KEYS.noteOverrides, {}); // { "1_0": "nota pratica modificata dall'utente", ... }
 let priorityOverrides = loadStore(STORE_KEYS.priorityOverrides, {}); // { "1_0": "Imperdibile", ... }
@@ -237,12 +272,11 @@ if (typeof db !== 'undefined' && db) {
 }
 
 // ---------------- sincronizzazione modifiche alle tappe (Firestore, se disponibile) ----------------
-// Descrizione, note pratiche, priorità, posizione Maps e orari personalizzati di ogni tappa erano
-// rimasti solo locali. Stesso trattamento dei pernottamenti: passano da Firestore, un documento per
-// tappa (con la chiave vera come campo, non come nome del documento — niente più problemi con "/").
-// NB: la PRIORITÀ resta volutamente FUORI da questa sincronizzazione — ognuno la imposta in
-// autonomia sul proprio dispositivo, poi si raccolgono e si confrontano con l'apposita funzione
-// in Info. Solo dopo aver deciso la versione definitiva ha senso condividerla per tutti.
+// Descrizione, note pratiche, priorità, posizione Maps e orari personalizzati di ogni tappa passano
+// da Firestore, un documento per tappa (con la chiave vera come campo, non come nome del
+// documento — niente più problemi con "/"). Anche la PRIORITÀ è qui dentro (dal momento in cui il
+// giro è stato definito insieme, condivisa e permanente come tutto il resto — prima era locale
+// apposta per permettere il voto personale di ciascuno prima di decidere).
 let stopOverridesFirestoreConnected = false;
 function saveStopOverrideData(key) {
   if (typeof db === 'undefined' || !db) return;
@@ -251,6 +285,7 @@ function saveStopOverrideData(key) {
     key,
     description: Object.prototype.hasOwnProperty.call(descriptionOverrides, key) ? descriptionOverrides[key] : null,
     note: Object.prototype.hasOwnProperty.call(noteOverrides, key) ? noteOverrides[key] : null,
+    priority: Object.prototype.hasOwnProperty.call(priorityOverrides, key) ? priorityOverrides[key] : null,
     mapsPosition: Object.prototype.hasOwnProperty.call(mapsOverrides, key) ? mapsOverrides[key] : null,
     duration: Object.prototype.hasOwnProperty.call(durationOverrides, key) ? durationOverrides[key] : null,
   };
@@ -262,26 +297,27 @@ function saveStopOverrideData(key) {
 if (typeof db !== 'undefined' && db) {
   let stopOvFirstSync = true;
   db.collection('sharedStopOverrides').onSnapshot((snapshot) => {
-    const newDesc = {}, newNote = {}, newMaps = {}, newDur = {};
+    const newDesc = {}, newNote = {}, newPri = {}, newMaps = {}, newDur = {};
     snapshot.docs.forEach(doc => {
       const d = doc.data();
       if (!d || !d.key) return;
       if (d.description !== null && d.description !== undefined) newDesc[d.key] = d.description;
       if (d.note !== null && d.note !== undefined) newNote[d.key] = d.note;
+      if (d.priority !== null && d.priority !== undefined) newPri[d.key] = d.priority;
       if (d.mapsPosition !== null && d.mapsPosition !== undefined) newMaps[d.key] = d.mapsPosition;
       if (d.duration !== null && d.duration !== undefined) newDur[d.key] = d.duration;
     });
 
     if (stopOvFirstSync) {
       stopOvFirstSync = false;
-      // prima sincronizzazione: quello che c'era già solo in locale viene caricato su Firestore
-      // (la priorità resta esclusa di proposito, vedi nota sopra)
+      // prima sincronizzazione: quello che c'era già solo in locale (comprese le priorità già
+      // decise) viene caricato su Firestore, così non si perde
       const allKeys = new Set([
-        ...Object.keys(descriptionOverrides), ...Object.keys(noteOverrides),
+        ...Object.keys(descriptionOverrides), ...Object.keys(noteOverrides), ...Object.keys(priorityOverrides),
         ...Object.keys(mapsOverrides), ...Object.keys(durationOverrides),
       ]);
       allKeys.forEach(key => {
-        if (!(key in newDesc) && !(key in newNote) && !(key in newMaps) && !(key in newDur)) {
+        if (!(key in newDesc) && !(key in newNote) && !(key in newPri) && !(key in newMaps) && !(key in newDur)) {
           saveStopOverrideData(key);
         }
       });
@@ -289,10 +325,12 @@ if (typeof db !== 'undefined' && db) {
 
     descriptionOverrides = newDesc;
     noteOverrides = newNote;
+    priorityOverrides = newPri;
     mapsOverrides = newMaps;
     durationOverrides = newDur;
     saveStore(STORE_KEYS.descriptionOverrides, descriptionOverrides);
     saveStore(STORE_KEYS.noteOverrides, noteOverrides);
+    saveStore(STORE_KEYS.priorityOverrides, priorityOverrides);
     saveStore(STORE_KEYS.mapsOverrides, mapsOverrides);
     saveStore(STORE_KEYS.durationOverrides, durationOverrides);
     stopOverridesFirestoreConnected = true;
@@ -639,26 +677,27 @@ function getEffectiveDurations(key, stop) {
   const ov = durationOverrides[key] || {};
   const guidaMin = ov.guida !== undefined ? ov.guida : parseHM(stop.guida);
   const visitaMin = ov.visita !== undefined ? ov.visita : parseHM(stop.visita);
-  return { guidaMin, visitaMin };
+  const km = ov.km !== undefined ? ov.km : (stop.km || 0);
+  return { guidaMin, visitaMin, km };
 }
 function computeDayChain(day) {
   let cursor = parseHM(getStartTime(day.id));
   const merged = getMergedStops(day);
-  const chain = {}; // key -> {partenza, arrivo, guidaMin, visitaMin, hidden}
+  const chain = {}; // key -> {partenza, arrivo, guidaMin, visitaMin, km, hidden}
   merged.forEach(({ key, stop }) => {
-    const { guidaMin, visitaMin } = getEffectiveDurations(key, stop);
+    const { guidaMin, visitaMin, km } = getEffectiveDurations(key, stop);
     const hidden = isStopHidden(key);
     const pri = getEffectivePriority(key, stop);
     const isOptional = pri === 'Facoltativa' || pri === 'Da evitare';
     if (hidden || isOptional) {
       // tolta dal calcolo degli orari: non conta nel totale, non sposta gli orari successivi
       // (le facoltative/da evitare sono trattate come le tappe nascoste, finché non diventano imperdibili)
-      chain[key] = { partenza: cursor, arrivo: cursor, guidaMin, visitaMin, hidden: true };
+      chain[key] = { partenza: cursor, arrivo: cursor, guidaMin, visitaMin, km, hidden: true };
       return;
     }
     const partenza = cursor;
     const arrivo = cursor + guidaMin;
-    chain[key] = { partenza, arrivo, guidaMin, visitaMin, hidden: false };
+    chain[key] = { partenza, arrivo, guidaMin, visitaMin, km, hidden: false };
     cursor = arrivo + visitaMin;
   });
   return chain;
@@ -970,7 +1009,7 @@ async function openStopDetailModal(day, key) {
   currentDetailDay = day;
   currentDetailKey = key;
   const chain = computeDayChain(day);
-  const { guidaMin, visitaMin } = chain[key];
+  const { guidaMin, visitaMin, km: effectiveKm } = chain[key];
 
   const backdrop = document.getElementById('stopDetailBackdrop');
   const eyebrow = document.getElementById('detailEyebrow');
@@ -985,7 +1024,7 @@ async function openStopDetailModal(day, key) {
 
   const effPriority = getEffectivePriority(key, s);
   let badges = '';
-  if (guidaMin > 0) badges += `<span class="badge time">🚗 ${formatDurationMin(guidaMin)}${s.km ? ' · ' + s.km + ' km' : ''}</span>`;
+  if (guidaMin > 0) badges += `<span class="badge time">🚗 ${formatDurationMin(guidaMin)}${effectiveKm ? ' · ' + effectiveKm + ' km' : ''}</span>`;
   if (visitaMin > 0) badges += `<span class="badge time">⏱ ${formatDurationMin(visitaMin)}</span>`;
   if (s.parcheggio !== null && s.parcheggio !== undefined) {
     badges += s.parcheggio > 0 ? `<span class="badge cost">🅿️ ${fmtEuro(s.parcheggio)}</span>` : `<span class="badge free">🅿️ gratuito</span>`;
@@ -1271,7 +1310,7 @@ function renderPriorityChips(day, key, s, current) {
       saveStore(STORE_KEYS.priorityOverrides, priorityOverrides);
       renderPriorityChips(day, key, s, newPri);
       renderDayView(); // aggiorna il badge nella lista delle tappe
-      // la priorità resta volutamente locale (non sincronizzata): vedi funzione "Raccogliere le priorità di tutti"
+      saveStopOverrideData(key);
     });
   });
 }
@@ -1421,6 +1460,7 @@ function renderDayView() {
     startTimes[day.id] = e.target.value || DEFAULT_START_TIME;
     saveStore(STORE_KEYS.startTimes, startTimes);
     renderDayView();
+    saveStartTime(day.id);
   });
   const resetBtn = document.getElementById('dayStartReset');
   if (resetBtn) {
@@ -1428,6 +1468,7 @@ function renderDayView() {
       delete startTimes[day.id];
       saveStore(STORE_KEYS.startTimes, startTimes);
       renderDayView();
+      saveStartTime(day.id);
     });
   }
   document.getElementById('addStopBtn').addEventListener('click', () => openAddStopModal(day));
@@ -1471,7 +1512,7 @@ function renderDayView() {
 
   function buildStopCardHtml({ key, stop: s, custom }, numberLabel, predKeyForWarning, isOptionalSection) {
     const isDone = doneList.includes(key);
-    const { partenza, arrivo, guidaMin, visitaMin } = chain[key];
+    const { partenza, arrivo, guidaMin, visitaMin, km: effectiveKm } = chain[key];
     const effectiveDescFull = getEffectiveDescription(key, s);
     const effectiveDescPreview = effectiveDescFull ? effectiveDescFull.split('\n\n')[0] : '';
 
@@ -1498,9 +1539,9 @@ function renderDayView() {
     if (!isOptionalSection && guidaMin > 0) {
       const warnSpan = guidaPotenzialmenteObsoleta
         ? `<span class="badge-warn" title="Tappa precedente cambiata: questo tempo di guida potrebbe non essere più giusto, ricontrollalo">⚠️</span>` : '';
-      badges += `<span class="badge time">🚗 ${formatDurationMin(guidaMin)}${s.km ? ' · ' + s.km + ' km' : ''}${warnSpan}</span>`;
+      badges += `<span class="badge time">🚗 ${formatDurationMin(guidaMin)}${effectiveKm ? ' · ' + effectiveKm + ' km' : ''}${warnSpan}</span>`;
     } else if (isOptionalSection && guidaMin > 0) {
-      badges += `<span class="badge time">🚗 ${formatDurationMin(guidaMin)}${s.km ? ' · ' + s.km + ' km' : ''} <em>(non conta negli orari)</em></span>`;
+      badges += `<span class="badge time">🚗 ${formatDurationMin(guidaMin)}${effectiveKm ? ' · ' + effectiveKm + ' km' : ''} <em>(non conta negli orari)</em></span>`;
     }
     if (visitaMin > 0) badges += `<span class="badge time">⏱ ${formatDurationMin(visitaMin)}</span>`;
     if (s.parcheggio !== null && s.parcheggio !== undefined) {
@@ -1542,6 +1583,10 @@ function renderDayView() {
             <div class="te-row">
               <label>Guida (min)</label>
               <input type="number" min="0" step="1" class="te-guida" value="${guidaMin}">
+            </div>
+            <div class="te-row">
+              <label>Km</label>
+              <input type="number" min="0" step="1" class="te-km" value="${s.km || 0}">
             </div>
             <div class="te-row">
               <label>Visita (min)</label>
@@ -1650,8 +1695,9 @@ function renderDayView() {
       const key = btn.dataset.key;
       const box = list.querySelector(`.stop-timeedit[data-key="${key}"]`);
       const guida = parseInt(box.querySelector('.te-guida').value, 10) || 0;
+      const km = parseInt(box.querySelector('.te-km').value, 10) || 0;
       const visita = parseInt(box.querySelector('.te-visita').value, 10) || 0;
-      durationOverrides[key] = { guida, visita };
+      durationOverrides[key] = { guida, visita, km };
       saveStore(STORE_KEYS.durationOverrides, durationOverrides);
       renderDayView();
       saveStopOverrideData(key);
@@ -1699,6 +1745,7 @@ function renderDayView() {
       }
       saveStore(STORE_KEYS.priorityOverrides, priorityOverrides);
       renderDayView();
+      saveStopOverrideData(key);
     });
   });
 
@@ -2065,6 +2112,7 @@ function renderPriorityCollector() {
       }
       saveStore(STORE_KEYS.priorityOverrides, priorityOverrides);
       renderPriorityCollector();
+      saveStopOverrideData(key);
     });
   });
 }

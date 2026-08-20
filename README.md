@@ -364,6 +364,17 @@ e scroll della pagina tendono a confliggere). Le frecce ottengono lo
 stesso risultato in modo più solido — se dopo averle provate preferisci
 comunque il trascinamento, fammelo sapere e vediamo come implementarlo.
 
+## Km modificabili, e l'orario di partenza ora è permanente
+
+In "✏️ orari" trovi ora anche il campo **Km**, modificabile insieme a
+guida e visita — utile quando correggi il tempo di guida dopo un
+riordino, così aggiorni anche la distanza mostrata.
+
+**Bug corretto**: l'orario di partenza mattutina di ogni giorno era
+rimasto solo locale (non su Firestore) — una pulizia della cache lo
+cancellava e tornava a 08:00. Ora è sincronizzato come tutto il resto:
+permanente e uguale su ogni dispositivo.
+
 ## Il campo "da" si aggiorna da solo con l'ordine
 
 Quando sposti una tappa (con le frecce ▲▼ o "Rendi imperdibile/facoltativa"),
@@ -390,19 +401,18 @@ uguale su ogni dispositivo.
 
 ## Anche le modifiche alle tappe sono ora permanenti (Firestore)
 
-Descrizione, note pratiche, posizione Maps e orari personalizzati **di
-ogni tappa** passano anche loro da Firestore — stesso trattamento dei
-pernottamenti. Da ora, tutto il lavoro che farai su descrizioni/note/
-posizioni delle ~150 tappe **non può più andare perso** con una pulizia
-della cache, ed è automaticamente uguale su ogni dispositivo.
+Descrizione, note pratiche, **priorità**, posizione Maps e orari
+personalizzati **di ogni tappa** passano tutti da Firestore. Da ora, tutto
+il lavoro che farai su descrizioni/note/priorità/posizioni delle ~150
+tappe **non può più andare perso** con una pulizia della cache, ed è
+automaticamente uguale su ogni dispositivo.
 
-**La 🎯 Priorità fa eccezione, di proposito**: resta personale per ogni
-dispositivo, così ognuno dei 6 partecipanti può segnare le proprie
-preferenze in autonomia senza sovrascrivere quelle degli altri — è
-pensata per essere raccolta e confrontata con la funzione
-"📊 Raccogliere le priorità di tutti" in Info, non per essere già
-condivisa in tempo reale. Una volta decisa la versione definitiva insieme,
-si può eventualmente rendere condivisa anche quella.
+**La 🎯 Priorità era rimasta locale apposta** all'inizio, per permettere a
+ognuno dei 6 di votare in autonomia con la funzione "📊 Raccogliere le
+priorità di tutti" in Info, senza sovrascrivere le scelte degli altri.
+Una volta definito il giro insieme, è stata resa condivisa e permanente
+come tutto il resto — se vuoi tornare a votare in autonomia (es. per
+un'altra revisione), dimmelo e la rendo di nuovo locale.
 
 Come per i pernottamenti: se compare un avviso "questa modifica NON è
 stata condivisa", il dato resta comunque sul tuo dispositivo ma non si è
