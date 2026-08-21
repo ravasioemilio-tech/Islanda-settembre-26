@@ -2020,10 +2020,10 @@ function renderDayMapPanel(day) {
   // fanno parte del percorso vero e proprio, non solo marcatori isolati come prima
   const morningLabel = getEffectiveDaForKey(day, mainStops[0].key);
   const eveningNativeStop = day.stops.find(s => s.a && /\(pernottamento/i.test(s.a));
-  let eveningLoc = null, eveningLabel = null;
+  let eveningLoc = null, eveningLabel = null, eveningKey = null;
   if (eveningNativeStop) {
     eveningLabel = eveningNativeStop.a;
-    const eveningKey = stopKeyByName(day.id, eveningNativeStop.a);
+    eveningKey = stopKeyByName(day.id, eveningNativeStop.a);
     eveningLoc = resolveDirectionsLocation(day, eveningKey, eveningNativeStop);
   }
 
@@ -2081,6 +2081,7 @@ function renderDayMapPanel(day) {
         title: m.stop.a,
       });
       attachHover(marker, `🟢 ${i + 1}. ${m.stop.a}`);
+      marker.addListener('click', () => openStopDetailModal(day, m.key));
       dayMapMainMarkers.push(marker);
     });
 
@@ -2095,6 +2096,7 @@ function renderDayMapPanel(day) {
       zIndex: 998,
     });
     attachHover(dayMapEndMarker, `🟣 Arrivo: ${eveningLabel || ''}`);
+    if (eveningKey) dayMapEndMarker.addListener('click', () => openStopDetailModal(day, eveningKey));
 
     statusEl.textContent = optionalStops.length ? '⏳ Posiziono le facoltative…' : '';
     placeOptionalMarkers(day, optionalStops, statusEl, infoWindow);
@@ -2138,20 +2140,21 @@ function placeOptionalMarkers(day, optionalStops, statusEl, sharedInfoWindow) {
   const geocoder = google.maps.Geocoder ? new google.maps.Geocoder() : null;
   const infoWindow = sharedInfoWindow || new google.maps.InfoWindow();
   let done = 0;
-  const placeMarker = (position, title) => {
+  const placeMarker = (position, title, key) => {
     const marker = new google.maps.Marker({
       position, map: dayMapInstance, title,
       icon: { path: google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: '#e9a83c', fillOpacity: 1, strokeColor: '#7a5a12', strokeWeight: 2 },
     });
     marker.addListener('mouseover', () => { infoWindow.setContent(`🟡 ${title}`); infoWindow.open(dayMapInstance, marker); });
     marker.addListener('mouseout', () => infoWindow.close());
+    marker.addListener('click', () => openStopDetailModal(day, key));
     dayMapOptionalMarkers.push(marker);
   };
   optionalStops.forEach(({ key, stop }) => {
     const loc = resolveDirectionsLocation(day, key, stop);
     if (typeof loc === 'object') {
       // sono già coordinate: nessun bisogno di geocodificare, si piazza subito il marcatore
-      placeMarker(loc, stop.a);
+      placeMarker(loc, stop.a, key);
       done++;
       if (done === optionalStops.length) statusEl.textContent = '';
       return;
@@ -2165,7 +2168,7 @@ function placeOptionalMarkers(day, optionalStops, statusEl, sharedInfoWindow) {
     geocoder.geocode({ address: loc }, (results, status) => {
       done++;
       if (status === 'OK' && results.length) {
-        placeMarker(results[0].geometry.location, stop.a);
+        placeMarker(results[0].geometry.location, stop.a, key);
       } else {
         console.warn('Geocoding facoltativa fallito:', stop.a, status);
       }

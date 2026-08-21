@@ -403,7 +403,11 @@ tracciato.
 
 **Passa il cursore su un marcatore qualsiasi** (blu, verde, giallo o
 viola) per vedere il nome/luogo in un fumetto, senza dover aprire
-nient'altro.
+nient'altro. **Toccalo/cliccalo** per aprire subito la sua scheda
+completa (verde, giallo e viola — tutti tranne quello blu di partenza,
+che non è una tappa di questo giorno) — esattamente come toccando
+"📖 Scheda" nella lista, comodo per controllare o modificare una tappa
+mentre guardi il percorso.
 
 **Diagnosi automatica se il percorso non si traccia**: se il calcolo
 generale fallisce, l'app prova ogni singolo tratto (partenza→1ª tappa,
