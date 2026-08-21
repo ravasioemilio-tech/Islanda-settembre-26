@@ -393,26 +393,27 @@ hai finito, oppure il pulsante "Vedi la mappa" di nuovo per nasconderla.
 Cambiando giorno, si chiude automaticamente (evita di restare aperta con
 la mappa di un altro giorno mentre guardi la lista di uno diverso).
 
-Traccia il **percorso reale** che collega tutte le tappe imperdibili
-nell'ordine attuale (calcolato con Google Maps, non una linea dritta), le
-tappe facoltative come **puntini gialli** separati (visibili, ma senza
-far parte del tracciato), e il **punto di partenza della mattina** come
-**puntino blu** con un'icona 🏠 — di solito il pernottamento della notte
-prima, così vedi subito da dove parte la giornata rispetto al resto del
-percorso.
+Traccia il **percorso completo, letto-a-letto**: dal pernottamento della
+notte prima (🔵 puntino blu con 🏠), attraverso tutte le tappe imperdibili
+in ordine (🟢 numerate come nella lista), fino al pernottamento di stasera
+(🟣 puntino viola con 🌙) — compresi i due tratti iniziale e finale, non
+solo quelli tra una tappa e l'altra. Le tappe facoltative restano a parte,
+come **puntini gialli** separati, visibili ma senza far parte del
+tracciato.
 
-**Passa il cursore su un marcatore** (verde o giallo) per vedere il nome
-della tappa in un fumetto, senza dover aprire nient'altro.
+**Passa il cursore su un marcatore qualsiasi** (blu, verde, giallo o
+viola) per vedere il nome/luogo in un fumetto, senza dover aprire
+nient'altro.
 
 **Diagnosi automatica se il percorso non si traccia**: se il calcolo
-generale fallisce, l'app prova ogni singolo tratto (tappa per tappa) uno
-alla volta, e ti dice **esattamente quale coppia di tappe** non ha un
-percorso stradale calcolabile tra loro — molto più utile del generico
-"percorso non tracciabile" di prima. La causa più comune quando succede
-su una tappa con coordinate inserite a mano: **latitudine e longitudine
-invertite** (va sempre prima la latitudine, che per l'Islanda è un
-numero positivo intorno a 63-66; la longitudine è negativa, intorno a
--13/-24) — oppure, come scoperto di recente, una coordinata presa da un
+generale fallisce, l'app prova ogni singolo tratto (partenza→1ª tappa,
+tappa→tappa, ultima tappa→arrivo) uno alla volta, e ti dice **esattamente
+quale coppia di punti** non ha un percorso stradale calcolabile tra loro
+— molto più utile del generico "percorso non tracciabile" di prima. La
+causa più comune quando succede su un punto con coordinate inserite a
+mano: **latitudine e longitudine invertite** (va sempre prima la
+latitudine, che per l'Islanda è un numero positivo intorno a 63-66; la
+longitudine è negativa, intorno a
 punto non raggiungibile in auto (es. il punto esatto di una cascata
 invece del parcheggio): in quel caso prendi le coordinate di dove
 arriva davvero il percorso stradale su Google Maps, non del pin che

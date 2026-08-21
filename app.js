@@ -1958,6 +1958,7 @@ let dayMapDirRenderer = null;
 let dayMapOptionalMarkers = [];
 let dayMapMainMarkers = [];
 let dayMapStartMarker = null;
+let dayMapEndMarker = null;
 let dayMapOpenForDayId = null;
 
 function toggleDayMapPanel(day) {
@@ -1997,8 +1998,8 @@ function renderDayMapPanel(day) {
     statusEl.textContent = '⚠️ Libreria Google Maps non ancora caricata, riprova tra un attimo.';
     return;
   }
-  if (mainStops.length < 2) {
-    statusEl.textContent = '⚠️ Servono almeno 2 tappe imperdibili per tracciare un percorso su questa giornata.';
+  if (mainStops.length < 1) {
+    statusEl.textContent = '⚠️ Serve almeno 1 tappa imperdibile per tracciare un percorso su questa giornata.';
     return;
   }
 
@@ -2013,12 +2014,24 @@ function renderDayMapPanel(day) {
   dayMapMainMarkers.forEach(m => m.setMap(null));
   dayMapMainMarkers = [];
   if (dayMapStartMarker) { dayMapStartMarker.setMap(null); dayMapStartMarker = null; }
+  if (dayMapEndMarker) { dayMapEndMarker.setMap(null); dayMapEndMarker = null; }
 
-  statusEl.textContent = '⏳ Traccio il percorso delle imperdibili…';
+  // punto di partenza (pernottamento della notte prima) e di arrivo (pernottamento di stasera):
+  // fanno parte del percorso vero e proprio, non solo marcatori isolati come prima
+  const morningLabel = getEffectiveDaForKey(day, mainStops[0].key);
+  const eveningNativeStop = day.stops.find(s => s.a && /\(pernottamento/i.test(s.a));
+  let eveningLoc = null, eveningLabel = null;
+  if (eveningNativeStop) {
+    eveningLabel = eveningNativeStop.a;
+    const eveningKey = stopKeyByName(day.id, eveningNativeStop.a);
+    eveningLoc = resolveDirectionsLocation(day, eveningKey, eveningNativeStop);
+  }
+
+  statusEl.textContent = '⏳ Traccio il percorso completo della giornata…';
   const svc = new google.maps.DirectionsService();
-  const originStr = resolveDirectionsLocation(day, mainStops[0].key, mainStops[0].stop);
-  const destStr = resolveDirectionsLocation(day, mainStops[mainStops.length - 1].key, mainStops[mainStops.length - 1].stop);
-  const waypoints = mainStops.slice(1, -1).map(m => ({
+  const originStr = morningLabel ? `${morningLabel}, Iceland` : resolveDirectionsLocation(day, mainStops[0].key, mainStops[0].stop);
+  const destStr = eveningLoc || resolveDirectionsLocation(day, mainStops[mainStops.length - 1].key, mainStops[mainStops.length - 1].stop);
+  const waypoints = mainStops.map(m => ({
     location: resolveDirectionsLocation(day, m.key, m.stop),
     stopover: true,
   }));
@@ -2032,7 +2045,7 @@ function renderDayMapPanel(day) {
   }, (result, status) => {
     if (status !== 'OK' || !result.routes.length) {
       statusEl.textContent = `⚠️ Percorso non tracciabile (${status}) — verifico quale tratto specifico non funziona…`;
-      diagnoseFailingSegment(day, mainStops, svc, statusEl);
+      diagnoseFailingSegment(day, mainStops, morningLabel, destStr, svc, statusEl);
       return;
     }
     dayMapDirRenderer.setDirections(result);
@@ -2046,77 +2059,71 @@ function renderDayMapPanel(day) {
       marker.addListener('mouseover', () => { infoWindow.setContent(label); infoWindow.open(dayMapInstance, marker); });
       marker.addListener('mouseout', () => infoWindow.close());
     };
-    legs.forEach((leg, i) => {
+
+    // punto di partenza: dove inizia il primo tratto (leg[0].start_location)
+    dayMapStartMarker = new google.maps.Marker({
+      position: legs[0].start_location,
+      map: dayMapInstance,
+      title: `Partenza: ${morningLabel || ''}`,
+      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: '#3468c9', fillOpacity: 1, strokeColor: '#1a3d80', strokeWeight: 2 },
+      label: { text: '🏠', fontSize: '11px' },
+      zIndex: 998,
+    });
+    attachHover(dayMapStartMarker, `🔵 Partenza: ${morningLabel || ''}`);
+
+    // tappe imperdibili: la posizione di ciascuna è la fine del tratto corrispondente
+    mainStops.forEach((m, i) => {
       const marker = new google.maps.Marker({
-        position: leg.start_location,
+        position: legs[i].end_location,
         map: dayMapInstance,
         label: { text: String(i + 1), color: '#fff', fontWeight: '700', fontSize: '13px' },
         icon: { path: google.maps.SymbolPath.CIRCLE, scale: 15, fillColor: '#2f9e63', fillOpacity: 1, strokeColor: '#1a6b40', strokeWeight: 2 },
-        title: mainStops[i].stop.a,
+        title: m.stop.a,
       });
-      attachHover(marker, `🟢 ${i + 1}. ${mainStops[i].stop.a}`);
+      attachHover(marker, `🟢 ${i + 1}. ${m.stop.a}`);
       dayMapMainMarkers.push(marker);
     });
+
+    // punto di arrivo: dove finisce l'ultimo tratto (leg finale)
     const lastLeg = legs[legs.length - 1];
-    const lastMarker = new google.maps.Marker({
+    dayMapEndMarker = new google.maps.Marker({
       position: lastLeg.end_location,
       map: dayMapInstance,
-      label: { text: String(legs.length + 1), color: '#fff', fontWeight: '700', fontSize: '13px' },
-      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 15, fillColor: '#2f9e63', fillOpacity: 1, strokeColor: '#1a6b40', strokeWeight: 2 },
-      title: mainStops[mainStops.length - 1].stop.a,
+      title: `Arrivo: ${eveningLabel || ''}`,
+      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: '#a4508c', fillOpacity: 1, strokeColor: '#5c2650', strokeWeight: 2 },
+      label: { text: '🌙', fontSize: '11px' },
+      zIndex: 998,
     });
-    attachHover(lastMarker, `🟢 ${legs.length + 1}. ${mainStops[mainStops.length - 1].stop.a}`);
-    dayMapMainMarkers.push(lastMarker);
-
-    placeStartMarker(day, mainStops[0], infoWindow);
+    attachHover(dayMapEndMarker, `🟣 Arrivo: ${eveningLabel || ''}`);
 
     statusEl.textContent = optionalStops.length ? '⏳ Posiziono le facoltative…' : '';
     placeOptionalMarkers(day, optionalStops, statusEl, infoWindow);
   });
 }
 
-// marcatore blu per il punto di partenza della mattina (di solito il pernottamento della notte
-// prima) — non fa parte del percorso calcolato, è solo un riferimento visivo su dove si parte
-function placeStartMarker(day, firstMainStop, infoWindow) {
-  const startLabel = getEffectiveDaForKey(day, firstMainStop.key);
-  if (!startLabel) return;
-  if (!google.maps.Geocoder) return;
-  const geocoder = new google.maps.Geocoder();
-  geocoder.geocode({ address: `${startLabel}, Iceland` }, (results, status) => {
-    if (status !== 'OK' || !results.length) {
-      console.warn('Geocoding punto di partenza fallito:', startLabel, status);
-      return;
-    }
-    dayMapStartMarker = new google.maps.Marker({
-      position: results[0].geometry.location,
-      map: dayMapInstance,
-      title: `Partenza: ${startLabel}`,
-      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: '#3468c9', fillOpacity: 1, strokeColor: '#1a3d80', strokeWeight: 2 },
-      label: { text: '🏠', fontSize: '11px' },
-      zIndex: 999, // sopra agli altri, per non restare nascosto se vicino alla prima tappa
-    });
-    dayMapStartMarker.addListener('mouseover', () => { infoWindow.setContent(`🔵 Partenza: ${startLabel}`); infoWindow.open(dayMapInstance, dayMapStartMarker); });
-    dayMapStartMarker.addListener('mouseout', () => infoWindow.close());
-  });
-}
+// prova ogni singolo tratto separatamente (partenza→1ª tappa, tappa N→tappa N+1, ultima tappa→arrivo),
+// per capire esattamente quale coppia di punti non ha un percorso stradale calcolabile tra loro
+function diagnoseFailingSegment(day, mainStops, morningLabel, destStr, svc, statusEl) {
+  const points = [
+    { label: morningLabel ? `Partenza (${morningLabel})` : 'Partenza', loc: morningLabel ? `${morningLabel}, Iceland` : null },
+    ...mainStops.map(m => ({ label: m.stop.a, loc: resolveDirectionsLocation(day, m.key, m.stop) })),
+    { label: 'Arrivo (pernottamento di stasera)', loc: destStr },
+  ].filter(p => p.loc); // se manca la partenza (giorno senza pernottamento precedente noto), la salta
 
-// prova ogni singolo tratto (tappa N -> tappa N+1) separatamente, per capire esattamente
-// quale coppia di tappe non ha un percorso stradale calcolabile tra loro
-function diagnoseFailingSegment(day, mainStops, svc, statusEl) {
   let i = 0;
   const tryNext = () => {
-    if (i >= mainStops.length - 1) {
+    if (i >= points.length - 1) {
       statusEl.textContent = '⚠️ Percorso non tracciabile, ma ogni singolo tratto risulta valido singolarmente — riprova, potrebbe essere un problema temporaneo di Google Maps.';
       return;
     }
-    const from = mainStops[i], to = mainStops[i + 1];
+    const from = points[i], to = points[i + 1];
     svc.route({
-      origin: resolveDirectionsLocation(day, from.key, from.stop),
-      destination: resolveDirectionsLocation(day, to.key, to.stop),
+      origin: from.loc,
+      destination: to.loc,
       travelMode: google.maps.TravelMode.DRIVING,
     }, (result, status) => {
       if (status !== 'OK' || !result.routes.length) {
-        statusEl.textContent = `⚠️ Il tratto "${from.stop.a}" → "${to.stop.a}" non ha un percorso stradale calcolabile (${status}). Controlla la posizione impostata su una delle due (specialmente se hai inserito coordinate a mano: verifica di non aver invertito latitudine e longitudine).`;
+        statusEl.textContent = `⚠️ Il tratto "${from.label}" → "${to.label}" non ha un percorso stradale calcolabile (${status}). Controlla la posizione impostata su una delle due (specialmente se hai inserito coordinate a mano: verifica di non aver invertito latitudine e longitudine).`;
         return;
       }
       i++;
