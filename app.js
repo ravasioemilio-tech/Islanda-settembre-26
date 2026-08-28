@@ -1959,6 +1959,7 @@ let dayMapOptionalMarkers = [];
 let dayMapMainMarkers = [];
 let dayMapStartMarker = null;
 let dayMapEndMarker = null;
+let dayMapSupermarketMarkers = [];
 let dayMapOpenForDayId = null;
 
 function toggleDayMapPanel(day) {
@@ -1994,6 +1995,21 @@ function renderDayMapPanel(day) {
   const statusEl = document.getElementById('dayMapStatus');
   statusEl.textContent = '';
 
+  // il "bonus" supermercati non ha senso per Arrivo e Giorno 1 (zona Reykjavík, già ben servita)
+  const bonusRow = document.getElementById('dayMapBonusRow');
+  bonusRow.style.display = (day.id === 0 || day.id === 1) ? 'none' : '';
+  const supermarketToggle = document.getElementById('dayMapSupermarketToggle');
+  supermarketToggle.checked = false;
+  supermarketToggle.onchange = () => {
+    if (supermarketToggle.checked) {
+      searchSupermarketsAlongRoute(day, mainStops);
+    } else {
+      dayMapSupermarketMarkers.forEach(m => m.setMap(null));
+      dayMapSupermarketMarkers = [];
+      statusEl.textContent = '';
+    }
+  };
+
   if (typeof google === 'undefined' || !google.maps) {
     statusEl.textContent = '⚠️ Libreria Google Maps non ancora caricata, riprova tra un attimo.';
     return;
@@ -2015,6 +2031,8 @@ function renderDayMapPanel(day) {
   dayMapMainMarkers = [];
   if (dayMapStartMarker) { dayMapStartMarker.setMap(null); dayMapStartMarker = null; }
   if (dayMapEndMarker) { dayMapEndMarker.setMap(null); dayMapEndMarker = null; }
+  dayMapSupermarketMarkers.forEach(m => m.setMap(null));
+  dayMapSupermarketMarkers = [];
 
   // punto di partenza (pernottamento della notte prima) e di arrivo (pernottamento di stasera):
   // fanno parte del percorso vero e proprio, non solo marcatori isolati come prima
@@ -2133,6 +2151,56 @@ function diagnoseFailingSegment(day, mainStops, morningLabel, destStr, svc, stat
     });
   };
   tryNext();
+}
+
+// ---------------- bonus: supermercati vicino alle tappe imperdibili del giorno (Google Places) ----------------
+function searchSupermarketsAlongRoute(day, mainStops) {
+  const statusEl = document.getElementById('dayMapStatus');
+  if (typeof google === 'undefined' || !google.maps.places) {
+    statusEl.textContent = '⚠️ Libreria Google Places non disponibile (serve abilitare "Places API" su Google Cloud).';
+    document.getElementById('dayMapSupermarketToggle').checked = false;
+    return;
+  }
+  statusEl.textContent = '⏳ Cerco i supermercati lungo il percorso…';
+  const svc = new google.maps.places.PlacesService(dayMapInstance);
+  const seenPlaceIds = new Set();
+  let pending = mainStops.length;
+
+  mainStops.forEach((m) => {
+    const marker = dayMapMainMarkers.find(mk => mk.getTitle() === m.stop.a);
+    const location = marker ? marker.getPosition() : null;
+    if (!location) { pending--; if (pending === 0) statusEl.textContent = ''; return; }
+
+    svc.nearbySearch({
+      location,
+      radius: 8000, // 8 km intorno a ogni tappa imperdibile
+      type: 'supermarket',
+    }, (results, status) => {
+      pending--;
+      if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+        results.forEach((place) => {
+          if (seenPlaceIds.has(place.place_id)) return; // evita doppioni se vicino a più tappe
+          seenPlaceIds.add(place.place_id);
+          const mk = new google.maps.Marker({
+            position: place.geometry.location,
+            map: dayMapInstance,
+            title: place.name,
+            icon: { path: google.maps.SymbolPath.CIRCLE, scale: 7, fillColor: '#e8791a', fillOpacity: 1, strokeColor: '#8a4a0f', strokeWeight: 2 },
+          });
+          mk.addListener('click', () => {
+            const q = encodeURIComponent(place.name + (place.vicinity ? ' ' + place.vicinity : ''));
+            window.open(`https://www.google.com/maps/search/?api=1&query=${q}`, '_blank');
+          });
+          dayMapSupermarketMarkers.push(mk);
+        });
+      }
+      if (pending === 0) {
+        statusEl.textContent = dayMapSupermarketMarkers.length
+          ? `🛒 ${dayMapSupermarketMarkers.length} supermercati trovati entro 8 km dalle tappe di oggi.`
+          : '🛒 Nessun supermercato trovato entro 8 km dalle tappe di oggi.';
+      }
+    });
+  });
 }
 
 function placeOptionalMarkers(day, optionalStops, statusEl, sharedInfoWindow) {

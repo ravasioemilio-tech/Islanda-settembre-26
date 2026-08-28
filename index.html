@@ -59,6 +59,12 @@
       <span>🟡 Facoltative (solo posizione)</span>
       <span>🟣 Arrivo (pernottamento stasera)</span>
     </div>
+    <div class="day-map-bonus-row" id="dayMapBonusRow" style="display:none;">
+      <label>
+        <input type="checkbox" id="dayMapSupermarketToggle">
+        🛒 Bonus: mostra i supermercati lungo il percorso (arancione)
+      </label>
+    </div>
     <div id="dayMapStatus" class="day-map-status"></div>
     <div id="dayMapCanvas" class="day-map-canvas"></div>
   </div>
@@ -318,7 +324,7 @@
 <script src="firebase-config.js"></script>
 <!-- Maps JavaScript API: serve per calcolare km/tempo reali tra due tappe direttamente dal
      browser, senza l'errore CORS che dà invece la Directions API "classica" chiamata a mano -->
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAMBCysH2_kmqwFNxvSdUObFqHxAWTJqW4" async defer></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAMBCysH2_kmqwFNxvSdUObFqHxAWTJqW4&libraries=places" async defer></script>
 <script src="app.js"></script>
 </body>
 </html>

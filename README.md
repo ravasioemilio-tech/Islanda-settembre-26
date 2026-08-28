@@ -380,6 +380,20 @@ totali** — calcolati solo sulle tappe imperdibili (le uniche che contano
 davvero nella sequenza), aggiornati in automatico ogni volta che sposti
 o modifichi qualcosa.
 
+## 🛒 Bonus: supermercati sulla mappa (dal Giorno 2 in poi)
+
+Nel pannello mappa, sotto la legenda, trovi una casella **"🛒 Bonus: mostra
+i supermercati lungo il percorso"** — non compare per Arrivo e Giorno 1
+(zona Reykjavík, già ben servita). Attivandola, cerca i supermercati
+entro 8 km da ogni tappa imperdibile del giorno e li mostra come
+**puntini arancioni** (diversi dal giallo delle Facoltative, per non
+confonderli). Toccane uno per aprirlo direttamente in Google Maps.
+
+**Serve un'API in più**: oltre alle tre già attive, questa funzione usa
+anche la **Places API** — stessa procedura di sempre: "API e servizi" →
+"Libreria" → cercala → "Abilita", e aggiungila alle restrizioni della
+chiave.
+
 ## 🗺️ Vedi la mappa di oggi
 
 In cima a ogni giornata trovi **"🗺️ Vedi la mappa di oggi"**: apre un
