@@ -2164,12 +2164,23 @@ function searchSupermarketsAlongRoute(day, mainStops) {
   statusEl.textContent = '⏳ Cerco i supermercati lungo il percorso…';
   const svc = new google.maps.places.PlacesService(dayMapInstance);
   const seenPlaceIds = new Set();
+  const errorStatuses = new Set(); // per capire se il problema è un vero errore, non "zero risultati"
+  let missingLocation = 0;
   let pending = mainStops.length;
 
   mainStops.forEach((m) => {
     const marker = dayMapMainMarkers.find(mk => mk.getTitle() === m.stop.a);
     const location = marker ? marker.getPosition() : null;
-    if (!location) { pending--; if (pending === 0) statusEl.textContent = ''; return; }
+    if (!location) {
+      missingLocation++;
+      pending--;
+      if (pending === 0) {
+        statusEl.textContent = missingLocation === mainStops.length
+          ? '⚠️ Non riesco a trovare la posizione delle tappe di oggi sulla mappa — riapri la mappa (chiudi e "Vedi la mappa di oggi" di nuovo) e riprova.'
+          : '';
+      }
+      return;
+    }
 
     svc.nearbySearch({
       location,
@@ -2177,7 +2188,9 @@ function searchSupermarketsAlongRoute(day, mainStops) {
       type: 'supermarket',
     }, (results, status) => {
       pending--;
-      if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+      const OK = google.maps.places.PlacesServiceStatus.OK;
+      const ZERO = google.maps.places.PlacesServiceStatus.ZERO_RESULTS;
+      if (status === OK && results) {
         results.forEach((place) => {
           if (seenPlaceIds.has(place.place_id)) return; // evita doppioni se vicino a più tappe
           seenPlaceIds.add(place.place_id);
@@ -2193,11 +2206,18 @@ function searchSupermarketsAlongRoute(day, mainStops) {
           });
           dayMapSupermarketMarkers.push(mk);
         });
+      } else if (status !== ZERO) {
+        errorStatuses.add(status); // REQUEST_DENIED, INVALID_REQUEST, OVER_QUERY_LIMIT, ecc: un vero errore
+        console.warn('Ricerca supermercati fallita per', m.stop.a, '- stato:', status);
       }
       if (pending === 0) {
-        statusEl.textContent = dayMapSupermarketMarkers.length
-          ? `🛒 ${dayMapSupermarketMarkers.length} supermercati trovati entro 8 km dalle tappe di oggi.`
-          : '🛒 Nessun supermercato trovato entro 8 km dalle tappe di oggi.';
+        if (errorStatuses.size) {
+          statusEl.textContent = `⚠️ Errore nella ricerca supermercati: ${[...errorStatuses].join(', ')} — controlla che "Places API" sia abilitata E aggiunta alle restrizioni della chiave su Google Cloud.`;
+        } else {
+          statusEl.textContent = dayMapSupermarketMarkers.length
+            ? `🛒 ${dayMapSupermarketMarkers.length} supermercati trovati entro 8 km dalle tappe di oggi.`
+            : '🛒 Nessun supermercato trovato entro 8 km dalle tappe di oggi.';
+        }
       }
     });
   });
