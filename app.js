@@ -642,6 +642,10 @@ function getEffectivePriority(key, s) {
 // aggiungo, tolgo o sposto una tappa in mezzo alle altre, tutte le modifiche già fatte (descrizioni,
 // note, priorità, foto...) restano agganciate al posto giusto invece di spostarsi per sbaglio.
 function stopKeyByName(dayId, name) { return `${dayId}::${name}`; }
+// Etichetta del giorno mostrata ovunque nell'app: "Arrivo" (id 0) è diventato "Giorno 1", e tutti
+// gli altri sono scalati di conseguenza (id 1 -> "Giorno 2", ... id 14 -> "Giorno 15"), così l'intero
+// viaggio è numerato in sequenza semplice senza più l'etichetta "Arrivo" a parte.
+function getDayLabel(day) { return day.label || `Giorno ${day.id + 1}`; }
 // Ordine "naturale" (quello originale, senza tener conto di eventuali spostamenti con le frecce):
 // serve per capire quale tappa veniva PRIMA di una certa tappa nell'itinerario di partenza, e quindi
 // se il tempo di guida mostrato (calcolato per quel tragitto) è ancora valido dopo un riordino.
@@ -1110,7 +1114,7 @@ async function openStopDetailModal(day, key) {
   const titleEl = document.getElementById('detailTitle');
   const badgesBox = document.getElementById('detailBadges');
 
-  eyebrow.textContent = `${day.label || 'Giorno ' + day.id} · da ${getEffectiveDaForKey(day, key)}`;
+  eyebrow.textContent = `${getDayLabel(day)} · da ${getEffectiveDaForKey(day, key)}`;
   titleEl.textContent = s.a || '';
 
   const isStay = renderStayInfoSection(day, s);
@@ -1491,7 +1495,7 @@ function renderDayTabs() {
   TRIP_DATA.days.forEach(day => {
     const btn = document.createElement('button');
     btn.className = 'daytab' + (day.id === currentDayId ? ' active' : '');
-    btn.textContent = day.label || `Giorno ${day.id}`;
+    btn.textContent = getDayLabel(day);
     btn.addEventListener('click', () => {
       currentDayId = day.id;
       renderDayTabs();
@@ -1991,7 +1995,7 @@ function renderDayMapPanel(day) {
     return pri === 'Facoltativa' || pri === 'Da evitare';
   });
 
-  document.getElementById('dayMapPanelTitle').textContent = `Mappa — ${day.label || 'Giorno ' + day.id}`;
+  document.getElementById('dayMapPanelTitle').textContent = `Mappa — ${getDayLabel(day)}`;
   const statusEl = document.getElementById('dayMapStatus');
   statusEl.textContent = '';
 
@@ -2730,7 +2734,7 @@ function getStopLabelByKey(key) {
   const dayId = parseInt(key.slice(0, sep), 10);
   const stopName = key.slice(sep + 2);
   const day = TRIP_DATA.days.find(d => d.id === dayId);
-  const dayLabel = day ? (day.label || `Giorno ${day.id}`) : `Giorno ${dayId}`;
+  const dayLabel = day ? getDayLabel(day) : `Giorno ${dayId + 1}`;
   const stop = day ? day.stops.find(s => s.a === stopName) : null;
   return { dayLabel, dayOrder: dayId, stopName, defaultPriority: stop ? (stop.priorita || null) : null };
 }
@@ -3300,7 +3304,7 @@ function renderSearchResults(query) {
   }
   box.innerHTML = results.slice(0, 40).map(r => `
     <div class="search-result-row" data-key="${r.key}" data-day="${r.day.id}">
-      <span class="search-result-day">${r.day.label || 'Giorno ' + r.day.id}</span>
+      <span class="search-result-day">${getDayLabel(r.day)}</span>
       <span class="search-result-name">${r.name}${r.hidden ? ' <em>(nascosta)</em>' : ''}</span>
     </div>
   `).join('');

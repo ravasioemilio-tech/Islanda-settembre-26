@@ -394,6 +394,17 @@ anche la **Places API** — stessa procedura di sempre: "API e servizi" →
 "Libreria" → cercala → "Abilita", e aggiungila alle restrizioni della
 chiave.
 
+## Numerazione dei giorni: "Arrivo" è diventato "Giorno 1"
+
+Il primo giorno (quello che prima si chiamava "Arrivo") ora è **"Giorno 1"**,
+e tutti gli altri sono scalati di conseguenza: "Giorno 1" è diventato
+"Giorno 2", fino a "Giorno 14" che è diventato **"Giorno 15"**. Numerazione
+semplice e continua, senza più un'etichetta a parte per il primo giorno.
+
+**Nota tecnica**: è stata una modifica sicura — solo l'etichetta mostrata
+è cambiata, nessun dato (priorità, foto, note, spese...) è stato toccato
+o rischia di essere perso.
+
 ## 🗺️ Vedi la mappa di oggi
 
 In cima a ogni giornata trovi **"🗺️ Vedi la mappa di oggi"**: apre un
