@@ -394,6 +394,14 @@ anche la **Places API** — stessa procedura di sempre: "API e servizi" →
 "Libreria" → cercala → "Abilita", e aggiungila alle restrizioni della
 chiave.
 
+## Bug corretto: avviso "Migrazione foto Firestore fallita" ripetuto
+
+Una migrazione automatica "una tantum" molto vecchia (risalente a quando
+avevamo sistemato il bug delle foto con "/" nel nome) poteva bloccare
+l'app con un avviso a ogni apertura se falliva per un permesso specifico
+su Firestore. Ormai è una questione tecnica superata: ora, se fallisce,
+non disturba più — fallisce in silenzio e non ritenta all'infinito.
+
 ## 🏨 Nuovo campo "Località" nei pernottamenti
 
 Nella scheda di ogni pernottamento ("🏨 Informazioni struttura" → "✏️

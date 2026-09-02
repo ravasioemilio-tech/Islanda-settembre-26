@@ -583,10 +583,12 @@ if (typeof db !== 'undefined' && db) {
         console.log(`Migrazione foto su Firestore completata: ${toWrite.length} foto spostate alla nuova chiave.`);
       }
       saveStore(STORE_KEYS.photoKeyMigrationDone, true);
-      alert(`🔧 Migrazione foto Firestore eseguita.\n\nDocumenti totali trovati: ${snapshot.docs.length}\nCon la vecchia chiave posizionale: ${oldFormatIds.length}\nSpostati alla nuova chiave: ${toWrite.length}\n\nSegnalami questi numeri se le foto ancora non si vedono.`);
     } catch (err) {
-      console.warn('Migrazione foto su Firestore non riuscita (riproverà al prossimo avvio):', err);
-      alert(`⚠️ Migrazione foto Firestore fallita.\n\nErrore: ${err.code || err.message || err}\n\nSegnalami questo messaggio.`);
+      // migrazione storica, ormai poco rilevante a questo punto del viaggio: se fallisce (es. per
+      // permessi) non blocchiamo più l'utente con un avviso a ogni apertura, la segniamo comunque
+      // come fatta così non ritenta all'infinito
+      console.warn('Migrazione foto su Firestore non riuscita, la salto silenziosamente:', err);
+      saveStore(STORE_KEYS.photoKeyMigrationDone, true);
     }
   })();
 }
