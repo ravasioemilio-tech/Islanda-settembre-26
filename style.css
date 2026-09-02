@@ -159,6 +159,7 @@ button {
 }
 .daytimes-box {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   background: #fff;
   border: 1px solid var(--line);
@@ -199,7 +200,7 @@ button {
   box-sizing: border-box;
 }
 .dt-field {
-  flex: 1;
+  flex: 1 1 130px;
   min-width: 0;
 }
 .dt-field label {

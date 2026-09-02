@@ -394,6 +394,35 @@ anche la **Places API** — stessa procedura di sempre: "API e servizi" →
 "Libreria" → cercala → "Abilita", e aggiungila alle restrizioni della
 chiave.
 
+## 🏨 Nuovo campo "Località" nei pernottamenti
+
+Nella scheda di ogni pernottamento ("🏨 Informazioni struttura" → "✏️
+Modifica") trovi ora anche **"📍 Località"** — esisteva già nei dati ma
+non era ancora mostrato/modificabile nell'app: utile proprio per casi
+come cambiare struttura in una zona diversa.
+
+**Aggiornamento contenuti applicato**: il pernottamento del Giorno 11 è
+ora **Mánagisting Guesthouse, Ísafjörður** (prima: Fisk Club Cottages,
+Flateyri) — ho lasciato vuoti camere/costo/cancellazione, dato che sono
+specifici della prenotazione e non li conosco: completali tu con i dati
+reali. Il punto di partenza del Giorno 12 è stato aggiornato di
+conseguenza a Ísafjörður.
+
+## 📍 Correggere il punto di partenza di un giorno
+
+Accanto a "🌅 Partenza mattutina" trovi ora **"📍 Punto di partenza"**: di
+solito è il pernottamento della notte prima, calcolato in automatico, ma
+se cambi struttura per una **zona/paese diverso** da quello previsto, la
+prima tappa del giorno dopo continuerebbe a mostrare "da [posto vecchio]"
+senza questo campo. Scrivi qui il nome del posto giusto e tocca fuori dal
+campo per salvare — aggiorna sia il testo "da" mostrato sulla prima
+tappa, sia il punto di partenza usato dalla mappa del giorno. Compare
+anche un "↺ ripristina" per tornare al valore calcolato in automatico.
+
+**Nota**: questo corregge il *testo*, non i tempi di guida — quelli vanno
+comunque ricalcolati a mano con "🧭 Ricalcola con Google Maps" sulla prima
+tappa, dato che il punto di partenza reale è cambiato.
+
 ## Numerazione dei giorni: "Arrivo" è diventato "Giorno 1"
 
 Il primo giorno (quello che prima si chiamava "Arrivo") ora è **"Giorno 1"**,

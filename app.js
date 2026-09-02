@@ -11,6 +11,7 @@ const STORE_KEYS = {
   settlements: 'iceland_settlements_v1',
   customSections: 'iceland_custom_sections_v1',
   dayNotes: 'iceland_day_notes_v1',
+  dayStartLocation: 'iceland_day_start_location_v1',
   startTimes: 'iceland_start_times_v1',
   durationOverrides: 'iceland_duration_overrides_v1',
   participants: 'iceland_participants_v1',
@@ -131,6 +132,43 @@ if (typeof db !== 'undefined' && db) {
     }
   }, (err) => {
     console.warn('Firestore (note giornata) non raggiungibile, uso la copia locale:', err);
+  });
+}
+
+// ---------------- sincronizzazione punto di partenza personalizzato (Firestore, se disponibile) ----------------
+// Il "da" della prima tappa imperdibile di un giorno di solito viene dal pernottamento della notte
+// prima; se cambi struttura/zona di un pernottamento, questo permette di correggere anche il punto
+// di partenza del giorno successivo, che altrimenti resterebbe quello vecchio.
+let dayStartLocationOverrides = loadStore(STORE_KEYS.dayStartLocation, {}); // { "5": "Egilsstaðir", ... }
+function saveDayStartLocation(dayId) {
+  if (typeof db === 'undefined' || !db) return;
+  const docId = firestoreSafeDocId('daystartloc_' + dayId);
+  if (dayStartLocationOverrides[dayId] === undefined) {
+    db.collection('sharedDayStartLocations').doc(docId).delete().catch((err) => console.warn('Eliminazione punto di partenza fallita:', err));
+    return;
+  }
+  db.collection('sharedDayStartLocations').doc(docId).set({ dayId: String(dayId), text: dayStartLocationOverrides[dayId] }).catch((err) => {
+    console.warn('Salvataggio punto di partenza su Firestore fallito:', err);
+    alert(`⚠️ Questa modifica NON è stata salvata in modo permanente. Errore: ${err.code || err.message || err}`);
+  });
+}
+if (typeof db !== 'undefined' && db) {
+  let dayStartLocFirstSync = true;
+  db.collection('sharedDayStartLocations').onSnapshot((snapshot) => {
+    const remote = {};
+    snapshot.docs.forEach(doc => {
+      const d = doc.data();
+      if (d && d.dayId !== undefined) remote[d.dayId] = d.text || '';
+    });
+    if (dayStartLocFirstSync) {
+      dayStartLocFirstSync = false;
+      Object.keys(dayStartLocationOverrides).forEach(dayId => { if (!(dayId in remote)) saveDayStartLocation(dayId); });
+    }
+    dayStartLocationOverrides = remote;
+    saveStore(STORE_KEYS.dayStartLocation, dayStartLocationOverrides);
+    if (typeof currentDayId !== 'undefined' && typeof renderDayView === 'function' && typeof currentView !== 'undefined' && currentView === 'days') renderDayView();
+  }, (err) => {
+    console.warn('Firestore (punto di partenza) non raggiungibile, uso la copia locale:', err);
   });
 }
 
@@ -554,6 +592,7 @@ if (typeof db !== 'undefined' && db) {
 }
 const PERNOTTAMENTO_EDITABLE_FIELDS = [
   ['struttura', '🏨', 'Nome struttura'],
+  ['localita', '📍', 'Località'],
   ['n_camere', '🛏', 'N. camere'],
   ['camere', '🛏', 'Camere (descrizione)'],
   ['bagno', '🚿', 'Bagno'],
@@ -1020,6 +1059,7 @@ function renderStayInfoGrid(rawP) {
   document.getElementById('detailStayCheckTimes').innerHTML = buildCheckTimesHtml(p);
   const rows = [
     ['🏨', 'Struttura', p.struttura],
+    ['📍', 'Località', p.localita],
     ['🛏', 'Camere', p.n_camere ? `${p.n_camere} (${p.camere || ''})`.replace(' ()', '') : (p.camere || '')],
     ['🚿', 'Bagno', p.bagno],
     ['🍳', 'Cucina', p.cucina],
@@ -1096,7 +1136,10 @@ function getEffectiveDaForKey(day, key) {
     })
     .map(m => m.key);
   const idx = mainKeys.indexOf(key);
-  if (idx <= 0) return (day.stops[0] && day.stops[0].da) ? day.stops[0].da : (s.da || '');
+  if (idx <= 0) {
+    if (Object.prototype.hasOwnProperty.call(dayStartLocationOverrides, day.id)) return dayStartLocationOverrides[day.id];
+    return (day.stops[0] && day.stops[0].da) ? day.stops[0].da : (s.da || '');
+  }
   const predItem = merged.find(m => m.key === mainKeys[idx - 1]);
   return (predItem && predItem.stop.a) ? predItem.stop.a : (s.da || '');
 }
@@ -1526,12 +1569,19 @@ function renderDayView() {
   const lastArr = visible.length ? chain[visible[visible.length - 1].key].arrivo : firstDep;
 
   const timesBar = document.getElementById('dayTimes');
+  const naturalStartLabel = (day.stops[0] && day.stops[0].da) ? day.stops[0].da : '';
+  const currentStartLabel = Object.prototype.hasOwnProperty.call(dayStartLocationOverrides, day.id)
+    ? dayStartLocationOverrides[day.id] : naturalStartLabel;
   timesBar.innerHTML = `
     <div class="daytimes-row">
       <div class="daytimes-box">
         <div class="dt-field">
           <label>🌅 Partenza mattutina</label>
           <input type="time" id="dayStartInput" value="${getStartTime(day.id)}">
+        </div>
+        <div class="dt-field">
+          <label>📍 Punto di partenza</label>
+          <input type="text" id="dayStartLocationInput" value="${currentStartLabel}" placeholder="es. Reykjavík">
         </div>
         <div class="dt-field dt-computed">
           <label>🌙 Arrivo previsto in serata</label>
@@ -1544,6 +1594,7 @@ function renderDayView() {
       </div>
     </div>
     ${startTimes[day.id] ? `<span class="dt-reset" id="dayStartReset">↺ ripristina orario predefinito (${DEFAULT_START_TIME})</span>` : ''}
+    ${Object.prototype.hasOwnProperty.call(dayStartLocationOverrides, day.id) ? `<span class="dt-reset" id="dayStartLocationReset">↺ ripristina punto di partenza predefinito (${naturalStartLabel || '—'})</span>` : ''}
     <div class="daytimes-actions">
       <span class="dt-add-stop" id="addStopBtn">➕ Aggiungi tappa in fondo alla giornata</span>
       <span class="dt-add-stop" id="viewDayMapBtn">🗺️ Vedi la mappa di oggi</span>
@@ -1557,6 +1608,26 @@ function renderDayView() {
     saveStore(STORE_KEYS.dayNotes, dayNotes);
     saveDayNote(day.id);
   });
+  document.getElementById('dayStartLocationInput').addEventListener('change', (e) => {
+    const val = e.target.value.trim();
+    if (val && val !== naturalStartLabel) {
+      dayStartLocationOverrides[day.id] = val;
+    } else {
+      delete dayStartLocationOverrides[day.id];
+    }
+    saveStore(STORE_KEYS.dayStartLocation, dayStartLocationOverrides);
+    renderDayView();
+    saveDayStartLocation(day.id);
+  });
+  const startLocResetBtn = document.getElementById('dayStartLocationReset');
+  if (startLocResetBtn) {
+    startLocResetBtn.addEventListener('click', () => {
+      delete dayStartLocationOverrides[day.id];
+      saveStore(STORE_KEYS.dayStartLocation, dayStartLocationOverrides);
+      renderDayView();
+      saveDayStartLocation(day.id);
+    });
+  }
   document.getElementById('dayStartInput').addEventListener('change', (e) => {
     startTimes[day.id] = e.target.value || DEFAULT_START_TIME;
     saveStore(STORE_KEYS.startTimes, startTimes);
@@ -1643,6 +1714,8 @@ function renderDayView() {
       if (predKeyForWarning) {
         const predItem = merged.find(m => m.key === predKeyForWarning);
         if (predItem && predItem.stop.a) effectiveDa = predItem.stop.a;
+      } else if (Object.prototype.hasOwnProperty.call(dayStartLocationOverrides, day.id)) {
+        effectiveDa = dayStartLocationOverrides[day.id]; // punto di partenza corretto a mano
       } else if (day.stops[0] && day.stops[0].da) {
         effectiveDa = day.stops[0].da; // punto di partenza naturale della giornata
       }
@@ -3579,7 +3652,7 @@ function renderSettlementsList() {
 
 
 document.getElementById('exportBtn').addEventListener('click', () => {
-  const payload = { doneStops, personalNotes, expenses, settlements, participants, startTimes, durationOverrides, cardTopups, descriptionOverrides, noteOverrides, priorityOverrides, suggestions, photoOverrides, mapsOverrides, hiddenStops, customStopsByDay, pernottamentoPhoto, pernottamentoNote, pernottamentoFieldOverrides, customSections, dayNotes, exportedAt: new Date().toISOString() };
+  const payload = { doneStops, personalNotes, expenses, settlements, participants, startTimes, durationOverrides, cardTopups, descriptionOverrides, noteOverrides, priorityOverrides, suggestions, photoOverrides, mapsOverrides, hiddenStops, customStopsByDay, pernottamentoPhoto, pernottamentoNote, pernottamentoFieldOverrides, customSections, dayNotes, dayStartLocationOverrides, stopOrderByDay, exportedAt: new Date().toISOString() };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -3615,6 +3688,8 @@ document.getElementById('importBackupFile').addEventListener('change', (e) => {
       ['settlements', STORE_KEYS.settlements],
       ['customSections', STORE_KEYS.customSections],
       ['dayNotes', STORE_KEYS.dayNotes],
+      ['dayStartLocationOverrides', STORE_KEYS.dayStartLocation],
+      ['stopOrderByDay', STORE_KEYS.stopOrder],
       ['participants', STORE_KEYS.participants],
       ['startTimes', STORE_KEYS.startTimes],
       ['durationOverrides', STORE_KEYS.durationOverrides],
@@ -3644,6 +3719,8 @@ document.getElementById('importBackupFile').addEventListener('change', (e) => {
     settlements = loadStore(STORE_KEYS.settlements, []);
     customSections = loadStore(STORE_KEYS.customSections, []);
     dayNotes = loadStore(STORE_KEYS.dayNotes, {});
+    dayStartLocationOverrides = loadStore(STORE_KEYS.dayStartLocation, {});
+    stopOrderByDay = loadStore(STORE_KEYS.stopOrder, {});
     participants = loadStore(STORE_KEYS.participants, participants);
     startTimes = loadStore(STORE_KEYS.startTimes, {});
     durationOverrides = loadStore(STORE_KEYS.durationOverrides, {});
