@@ -1983,6 +1983,11 @@ button {
   cursor: pointer;
   box-sizing: border-box;
 }
+.import-backup-label-danger {
+  border-color: var(--red);
+  color: var(--red);
+  background: #fff5f5;
+}
 
 .install-banner {
   margin: 10px 16px 0;

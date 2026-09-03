@@ -120,7 +120,7 @@ if (typeof db !== 'undefined' && db) {
       const d = doc.data();
       if (d && d.dayId !== undefined) remote[d.dayId] = d.text || '';
     });
-    if (dayNotesFirstSync) {
+    if (dayNotesFirstSync && !snapshot.metadata.fromCache) {
       dayNotesFirstSync = false;
       Object.keys(dayNotes).forEach(dayId => { if (!(dayId in remote)) saveDayNote(dayId); });
     }
@@ -160,7 +160,7 @@ if (typeof db !== 'undefined' && db) {
       const d = doc.data();
       if (d && d.dayId !== undefined) remote[d.dayId] = d.text || '';
     });
-    if (dayStartLocFirstSync) {
+    if (dayStartLocFirstSync && !snapshot.metadata.fromCache) {
       dayStartLocFirstSync = false;
       Object.keys(dayStartLocationOverrides).forEach(dayId => { if (!(dayId in remote)) saveDayStartLocation(dayId); });
     }
@@ -193,7 +193,7 @@ if (typeof db !== 'undefined' && db) {
       const d = doc.data();
       if (d && d.dayId !== undefined) remote[d.dayId] = d.time;
     });
-    if (startTimesFirstSync) {
+    if (startTimesFirstSync && !snapshot.metadata.fromCache) {
       startTimesFirstSync = false;
       Object.keys(startTimes).forEach(dayId => { if (!(dayId in remote)) saveStartTime(dayId); });
     }
@@ -246,7 +246,7 @@ if (typeof db !== 'undefined' && db) {
       const { dayId, ...entry } = d;
       remote[d.dayId].push(entry);
     });
-    if (customStopsFirstSync) {
+    if (customStopsFirstSync && !snapshot.metadata.fromCache) {
       customStopsFirstSync = false;
       Object.keys(customStopsByDay).forEach(dayId => {
         (customStopsByDay[dayId] || []).forEach(entry => {
@@ -283,7 +283,7 @@ if (typeof db !== 'undefined' && db) {
       const d = doc.data();
       if (d && d.dayId !== undefined) remote[d.dayId] = d.order || [];
     });
-    if (orderFirstSync) {
+    if (orderFirstSync && !snapshot.metadata.fromCache) {
       orderFirstSync = false;
       Object.keys(stopOrderByDay).forEach(dayId => {
         if (!(dayId in remote)) saveStopOrder(dayId);
@@ -327,7 +327,7 @@ if (typeof db !== 'undefined' && db) {
       remoteNotes[d.notte] = d.note || '';
     });
 
-    if (pernFirstSync) {
+    if (pernFirstSync && !snapshot.metadata.fromCache) {
       pernFirstSync = false;
       // prima sincronizzazione: quello che c'era già solo in locale viene caricato su Firestore
       const allNotti = new Set([...Object.keys(pernottamentoFieldOverrides), ...Object.keys(pernottamentoNote)]);
@@ -390,7 +390,7 @@ if (typeof db !== 'undefined' && db) {
       if (d.duration !== null && d.duration !== undefined) newDur[d.key] = d.duration;
     });
 
-    if (stopOvFirstSync) {
+    if (stopOvFirstSync && !snapshot.metadata.fromCache) {
       stopOvFirstSync = false;
       // prima sincronizzazione: quello che c'era già solo in locale (comprese le priorità già
       // decise) viene caricato su Firestore, così non si perde
@@ -518,7 +518,7 @@ if (typeof db !== 'undefined' && db) {
       }
     });
 
-    if (photosFirstSync) {
+    if (photosFirstSync && !snapshot.metadata.fromCache) {
       photosFirstSync = false;
       // prima sincronizzazione: le foto già presenti solo in locale (da prima che Firestore
       // fosse collegato) vengono caricate su Firestore, così non si perdono
@@ -738,7 +738,7 @@ if (typeof db !== 'undefined' && db) {
       const d = doc.data();
       if (d && d.key) remote[d.key] = true;
     });
-    if (hiddenStopsFirstSync) {
+    if (hiddenStopsFirstSync && !snapshot.metadata.fromCache) {
       hiddenStopsFirstSync = false;
       Object.keys(hiddenStops).forEach(key => {
         if (!(key in remote)) {
@@ -3745,6 +3745,115 @@ document.getElementById('importBackupFile').addEventListener('change', (e) => {
     if (currentView === 'info') renderInfo();
 
     alert('Backup importato con successo.');
+    e.target.value = '';
+  };
+  reader.readAsText(file);
+});
+
+// ---------------- ripristino di un backup per TUTTI (spinge i dati su Firestore) ----------------
+// A differenza di "Importa un backup" (che salva solo su questo telefono, e verrebbe risovrascritto
+// dalla prossima sincronizzazione), questo pubblica davvero il contenuto del backup su Firestore,
+// così diventa il dato "vero" per tutti i dispositivi — pensato per riparare un pasticcio condiviso
+// (es. priorità sballate), non per l'uso quotidiano.
+document.getElementById('restoreEverywhereFile').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    let data;
+    try {
+      data = JSON.parse(reader.result);
+    } catch (err) {
+      alert('File non valido: assicurati di aver selezionato un backup .json esportato da questa app.');
+      e.target.value = '';
+      return;
+    }
+    if (typeof db === 'undefined' || !db) {
+      alert('⚠️ Nessuna connessione a Firestore in questo momento: impossibile ripristinare per tutti. Riprova quando sei online.');
+      e.target.value = '';
+      return;
+    }
+    const when = data.exportedAt ? new Date(data.exportedAt).toLocaleString('it-IT') : 'data sconosciuta';
+    const ok = confirm(`⚠️ ATTENZIONE — azione importante.\n\nQuesto ripristinerà il backup del ${when} per TUTTI i partecipanti, sovrascrivendo su Firestore priorità, descrizioni, note, foto, ordine tappe, orari, pernottamenti e tutto il resto — anche quello inserito da altri dopo questa data.\n\nProcedere?`);
+    if (!ok) { e.target.value = ''; return; }
+    const ok2 = confirm('Sei sicuro? Questa azione non si può annullare facilmente — conviene farla una volta sola, con calma.');
+    if (!ok2) { e.target.value = ''; return; }
+
+    const statusMsg = (txt) => { console.log(txt); };
+    let pushedCount = 0, failedCount = 0;
+    const track = (p) => p.then(() => { pushedCount++; }).catch(() => { failedCount++; });
+
+    const pending = [];
+
+    // sharedStopOverrides: descrizione/note/priorità/posizione/durata, tutte insieme per chiave-tappa
+    const stopKeys = new Set([
+      ...Object.keys(data.descriptionOverrides || {}), ...Object.keys(data.noteOverrides || {}),
+      ...Object.keys(data.priorityOverrides || {}), ...Object.keys(data.mapsOverrides || {}),
+      ...Object.keys(data.durationOverrides || {}),
+    ]);
+    stopKeys.forEach(key => {
+      descriptionOverrides[key] = (data.descriptionOverrides || {})[key];
+      noteOverrides[key] = (data.noteOverrides || {})[key];
+      priorityOverrides[key] = (data.priorityOverrides || {})[key];
+      mapsOverrides[key] = (data.mapsOverrides || {})[key];
+      durationOverrides[key] = (data.durationOverrides || {})[key];
+      const docId = firestoreSafeDocId('stopov_' + key);
+      const payload = {
+        key,
+        description: Object.prototype.hasOwnProperty.call(data.descriptionOverrides || {}, key) ? data.descriptionOverrides[key] : null,
+        note: Object.prototype.hasOwnProperty.call(data.noteOverrides || {}, key) ? data.noteOverrides[key] : null,
+        priority: Object.prototype.hasOwnProperty.call(data.priorityOverrides || {}, key) ? data.priorityOverrides[key] : null,
+        mapsPosition: Object.prototype.hasOwnProperty.call(data.mapsOverrides || {}, key) ? data.mapsOverrides[key] : null,
+        duration: Object.prototype.hasOwnProperty.call(data.durationOverrides || {}, key) ? data.durationOverrides[key] : null,
+      };
+      pending.push(track(db.collection('sharedStopOverrides').doc(docId).set(payload)));
+    });
+
+    // hidden stops: prima ripulisce quelle attuali non presenti nel backup, poi scrive quelle del backup
+    const backupHidden = data.hiddenStops || {};
+    Object.keys(hiddenStops || {}).forEach(key => {
+      if (!backupHidden[key]) pending.push(track(db.collection('sharedHiddenStops').doc(firestoreSafeDocId('hidden_' + key)).delete()));
+    });
+    Object.keys(backupHidden).forEach(key => {
+      pending.push(track(db.collection('sharedHiddenStops').doc(firestoreSafeDocId('hidden_' + key)).set({ key })));
+    });
+
+    // tappe personalizzate: riscrive quelle del backup (le eventuali extra sul dispositivo corrente restano, si eliminano a mano se serve)
+    Object.entries(data.customStopsByDay || {}).forEach(([dayId, arr]) => {
+      (arr || []).forEach(entry => {
+        pending.push(track(db.collection('sharedCustomStops').doc(firestoreSafeDocId('customstop_' + entry.key)).set({ dayId: String(dayId), ...entry })));
+      });
+    });
+
+    // ordine tappe per giorno
+    Object.entries(data.stopOrderByDay || {}).forEach(([dayId, order]) => {
+      pending.push(track(db.collection('sharedStopOrder').doc(firestoreSafeDocId('order_' + dayId)).set({ dayId: String(dayId), order: order || [] })));
+    });
+
+    // orari di partenza e punto di partenza per giorno
+    Object.entries(data.startTimes || {}).forEach(([dayId, time]) => {
+      pending.push(track(db.collection('sharedStartTimes').doc(firestoreSafeDocId('starttime_' + dayId)).set({ dayId: String(dayId), time })));
+    });
+    Object.entries(data.dayStartLocationOverrides || {}).forEach(([dayId, text]) => {
+      pending.push(track(db.collection('sharedDayStartLocations').doc(firestoreSafeDocId('daystartloc_' + dayId)).set({ dayId: String(dayId), text })));
+    });
+    Object.entries(data.dayNotes || {}).forEach(([dayId, text]) => {
+      pending.push(track(db.collection('sharedDayNotes').doc(firestoreSafeDocId('daynote_' + dayId)).set({ dayId: String(dayId), text })));
+    });
+
+    // pernottamenti: dati struttura/camere/ecc, foto e note
+    Object.entries(data.pernottamentoFieldOverrides || {}).forEach(([notte, fields]) => {
+      const noteVal = (data.pernottamentoNote || {})[notte] || '';
+      pending.push(track(db.collection('sharedPernottamentoData').doc(firestoreSafeDocId('pern_' + notte)).set({ notte: String(notte), fields: fields || {}, note: noteVal })));
+    });
+
+    await Promise.all(pending);
+
+    // spese, saldi e altri dati "personali per dispositivo" non vengono toccati qui apposta: restano
+    // gestiti da "Importa un backup" (sopra), per non rischiare di sovrascrivere lavoro recente
+    // fatto da altri con una logica diversa da quella già collaudata sopra
+
+    alert(`Ripristino completato.\n\nDocumenti scritti con successo: ${pushedCount}\nFalliti: ${failedCount}\n\nOra pulisci la cache su OGNI dispositivo (disinstalla → cancella dati → riavvia → reinstalla) perché tutti vedano i dati ripristinati.`);
     e.target.value = '';
   };
   reader.readAsText(file);

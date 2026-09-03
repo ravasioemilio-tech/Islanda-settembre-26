@@ -103,8 +103,12 @@
   <div class="section-title">Dati e backup</div>
   <div class="export-bar">
     <button id="exportBtn">⬇️ Esporta tutto (backup JSON)</button>
-    <label class="import-backup-label" for="importBackupFile">⬆️ Importa un backup</label>
+    <label class="import-backup-label" for="importBackupFile">⬆️ Importa un backup (solo su questo telefono)</label>
     <input type="file" id="importBackupFile" accept="application/json" style="display:none">
+  </div>
+  <div class="export-bar">
+    <label class="import-backup-label import-backup-label-danger" for="restoreEverywhereFile">🚨 Ripristina un backup per TUTTI (sovrascrive Firestore)</label>
+    <input type="file" id="restoreEverywhereFile" accept="application/json" style="display:none">
   </div>
 </div>
 
