@@ -210,7 +210,8 @@ button {
   color: var(--ink-soft);
   margin-bottom: 4px;
 }
-.dt-field input[type="time"] {
+.dt-field input[type="time"],
+.dt-field input[type="text"] {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -220,6 +221,7 @@ button {
   color: var(--navy);
   background: #fbfbf7;
   font-family: inherit;
+  box-sizing: border-box;
 }
 .dt-computed .dt-value {
   font-size: 1.15rem;
