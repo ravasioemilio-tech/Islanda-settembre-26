@@ -1933,11 +1933,18 @@ function renderDayView() {
       }
       statusEl.textContent = '⏳ Calcolo in corso…';
       const svc = new google.maps.DirectionsService();
+      let recalcSettled = false;
+      const recalcTimeout = setTimeout(() => {
+        if (!recalcSettled) { recalcSettled = true; statusEl.textContent = '⚠️ Google Maps non ha risposto in tempo, riprova.'; }
+      }, 15000);
       svc.route({
         origin: originStr,
         destination: destStr,
         travelMode: google.maps.TravelMode.DRIVING,
       }, (result, status) => {
+        clearTimeout(recalcTimeout);
+        if (recalcSettled) return; // il timeout è già scattato, non sovrascrivere il messaggio
+        recalcSettled = true;
         if (status !== 'OK' || !result.routes.length) {
           statusEl.textContent = `⚠️ Percorso non trovato (${status}) — inseriscilo a mano`;
           return;
@@ -2441,10 +2448,14 @@ function openInsertPositionModal(day, key) {
 
   const svc = new google.maps.DirectionsService();
   const routeAsync = (originStr, destStr) => new Promise((resolve) => {
+    let settled = false;
+    const done = (val) => { if (!settled) { settled = true; resolve(val); } };
+    const timeoutId = setTimeout(() => done(null), 15000); // non resta bloccato per sempre se Google Maps non risponde
     svc.route({ origin: originStr, destination: destStr, travelMode: google.maps.TravelMode.DRIVING }, (result, status) => {
-      if (status !== 'OK' || !result.routes.length) { resolve(null); return; }
+      clearTimeout(timeoutId);
+      if (status !== 'OK' || !result.routes.length) { done(null); return; }
       const leg = result.routes[0].legs[0];
-      resolve({ min: Math.round(leg.duration.value / 60), km: Math.round(leg.distance.value / 100) / 10 });
+      done({ min: Math.round(leg.duration.value / 60), km: Math.round(leg.distance.value / 100) / 10 });
     });
   });
 

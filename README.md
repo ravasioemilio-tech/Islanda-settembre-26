@@ -394,6 +394,48 @@ anche la **Places API** — stessa procedura di sempre: "API e servizi" →
 "Libreria" → cercala → "Abilita", e aggiungila alle restrizioni della
 chiave.
 
+## 🐛 Bug serio corretto: un dispositivo poteva sovrascrivere i dati di tutti
+
+Trovata la causa più probabile dietro il "pasticcio" con priorità
+spostate: un difetto di corsa (race condition) nel modo in cui l'app
+sincronizza i dati al primo avvio. In rari casi, il primo "pacchetto" di
+dati che Firestore restituisce a un dispositivo è una **copia in cache
+locale**, potenzialmente incompleta o vecchia — non ancora confermata dal
+server. Se in quel preciso istante l'app pensava "questi dati mancano su
+Firestore" e li spingeva subito, poteva **sovrascrivere dati corretti già
+condivisi da tutti** con vecchi dati fermi su un telefono specifico.
+
+**Corretto su tutte le 9 categorie di dati sincronizzati** (priorità,
+descrizioni, note, ordine tappe, orari, pernottamenti, tappe nascoste,
+tappe personalizzate, foto): ora l'app aspetta la conferma vera del
+server prima di decidere se mancano dati da caricare, invece di fidarsi
+della prima risposta che riceve.
+
+## Bug corretto: calcolo Google Maps bloccato all'infinito
+
+Se una richiesta a Google Maps non riceveva mai risposta (rete instabile,
+telefono passato in background durante il calcolo), sia "🧭 Ricalcola con
+Google Maps" sia "Dove inserire una facoltativa" potevano restare bloccati
+per sempre su "⏳ Calcolo in corso...". Ora, dopo 15 secondi senza
+risposta, l'app se ne accorge da sola e mostra un avviso invece di
+restare bloccata — nel caso della scelta con più opzioni, salta solo
+quella specifica e continua con le altre.
+
+## 🚨 Nuovo: "Ripristina un backup per TUTTI"
+
+In Info trovi ora, oltre a "⬆️ Importa un backup" (che aggiorna solo
+questo telefono, e verrebbe risovrascritto dalla sincronizzazione
+successiva), anche **"🚨 Ripristina un backup per TUTTI"** — questo sì
+scrive davvero il contenuto del backup su Firestore, rendendolo il dato
+"vero" per ogni dispositivo. Pensato per casi come quello appena
+capitato, non per l'uso quotidiano: due conferme esplicite prima di
+procedere, dato che sovrascrive priorità/descrizioni/note/ordine/orari/
+pernottamenti di tutti con quelli del file caricato.
+
+**Dopo averlo usato**: bisogna pulire la cache su **ogni dispositivo**
+(non solo quello con cui hai fatto il ripristino) perché tutti vedano i
+dati corretti.
+
 ## Bug corretto: avviso "Migrazione foto Firestore fallita" ripetuto
 
 Una migrazione automatica "una tantum" molto vecchia (risalente a quando
