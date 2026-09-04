@@ -411,6 +411,16 @@ tappe personalizzate, foto): ora l'app aspetta la conferma vera del
 server prima di decidere se mancano dati da caricare, invece di fidarsi
 della prima risposta che riceve.
 
+## 🇮🇸 Convertitore ISK→euro nel modulo spese
+
+Sotto "Importo (€)" trovi **"🇮🇸 Ho l'importo in ISK, converti tu"**: la
+tocchi, scrivi l'importo in corone islandesi, e l'euro si calcola da
+solo. Il **tasso di cambio si aggiorna automaticamente una volta al
+giorno**, preso dalla Banca Centrale Europea tramite un servizio
+gratuito (Frankfurter) — nessuna chiave da configurare, nessun account.
+Resta comunque modificabile a mano, se vuoi usare quello preciso che
+vedi su Revolut in un momento specifico.
+
 ## Bug corretto: calcolo Google Maps bloccato all'infinito
 
 Se una richiesta a Google Maps non riceveva mai risposta (rete instabile,

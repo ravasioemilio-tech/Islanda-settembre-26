@@ -166,6 +166,20 @@
     <div class="field">
       <label>Importo (€)</label>
       <input type="number" inputmode="decimal" step="0.01" id="expAmount" placeholder="0.00">
+      <span class="isk-converter-toggle" id="iskConverterToggle">🇮🇸 Ho l'importo in ISK, converti tu</span>
+      <div class="isk-converter-box" id="iskConverterBox" style="display:none;">
+        <div class="isk-converter-row">
+          <div>
+            <label>Importo in ISK</label>
+            <input type="number" inputmode="decimal" step="1" id="iskAmount" placeholder="0">
+          </div>
+          <div>
+            <label>Tasso (1€ =)</label>
+            <input type="number" inputmode="decimal" step="0.1" id="iskRate" value="140.8">
+          </div>
+        </div>
+        <div class="isk-converter-hint">Tasso aggiornato automaticamente una volta al giorno (Banca Centrale Europea) — modificabile a mano se vuoi usare quello preciso di Revolut.</div>
+      </div>
     </div>
     <div class="field">
       <label>Nota (facoltativa)</label>

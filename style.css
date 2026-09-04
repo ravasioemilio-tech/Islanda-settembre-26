@@ -1672,6 +1672,42 @@ button {
   font-family: inherit;
   background: #fbfbf7;
 }
+.isk-converter-toggle {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--teal);
+  cursor: pointer;
+}
+.isk-converter-box {
+  margin-top: 8px;
+  padding: 10px;
+  background: #fbfbf7;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.isk-converter-row {
+  display: flex;
+  gap: 10px;
+}
+.isk-converter-row > div { flex: 1; }
+.isk-converter-row label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  margin-bottom: 3px;
+}
+.isk-converter-row input {
+  padding: 8px 9px;
+  font-size: 0.9rem;
+}
+.isk-converter-hint {
+  margin-top: 6px;
+  font-size: 0.7rem;
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
 .exp-split-toggle-label {
   display: flex !important;
   align-items: center;

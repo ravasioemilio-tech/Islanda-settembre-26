@@ -12,6 +12,7 @@ const STORE_KEYS = {
   customSections: 'iceland_custom_sections_v1',
   dayNotes: 'iceland_day_notes_v1',
   dayStartLocation: 'iceland_day_start_location_v1',
+  iskRateCache: 'iceland_isk_rate_cache_v1',
   startTimes: 'iceland_start_times_v1',
   durationOverrides: 'iceland_duration_overrides_v1',
   participants: 'iceland_participants_v1',
@@ -3466,17 +3467,10 @@ document.getElementById('expPaidBy').addEventListener('change', () => {
 
 function openExpenseModal() {
   const daySel = document.getElementById('expDay');
-  const numberedDays = TRIP_DATA.days.filter(d => !d.label);
-  const maxNumberedId = numberedDays.length ? Math.max(...numberedDays.map(d => d.id)) : 0;
-  const dayLabel = d => d.label || `Giorno ${d.id}`;
-  daySel.innerHTML = TRIP_DATA.days.map(d => `<option value="${dayLabel(d)}">${dayLabel(d)}</option>`).join('')
-    + Array.from({length: Math.max(0, 14 - maxNumberedId)}, (_, i) => {
-        const n = maxNumberedId + i + 1;
-        return `<option value="Giorno ${n}">Giorno ${n}</option>`;
-      }).join('')
+  daySel.innerHTML = TRIP_DATA.days.map(d => `<option value="${getDayLabel(d)}">${getDayLabel(d)}</option>`).join('')
     + `<option value="Generale">Generale (aereo, noleggio, ecc.)</option>`;
   const currentDay = TRIP_DATA.days.find(d => d.id === currentDayId);
-  daySel.value = currentDay ? dayLabel(currentDay) : `Giorno ${currentDayId}`;
+  daySel.value = currentDay ? getDayLabel(currentDay) : `Giorno ${currentDayId + 1}`;
 
   const typeChips = document.getElementById('expTypeChips');
   typeChips.innerHTML = `
@@ -3523,9 +3517,55 @@ function openExpenseModal() {
   document.getElementById('expSplitToggle').checked = false;
   document.getElementById('expSplitPeople').style.display = 'none';
   document.getElementById('expSplitPeople').innerHTML = '';
+  document.getElementById('iskConverterBox').style.display = 'none';
+  document.getElementById('iskAmount').value = '';
   updateModalFieldsVisibility();
   expModalBackdrop.classList.add('open');
   lockBodyScroll();
+}
+
+document.getElementById('iskConverterToggle').addEventListener('click', () => {
+  const box = document.getElementById('iskConverterBox');
+  const opening = box.style.display === 'none';
+  box.style.display = opening ? '' : 'none';
+  if (opening) fetchDailyIskRate();
+});
+function updateEuroFromIsk() {
+  const isk = parseFloat(document.getElementById('iskAmount').value);
+  const rate = parseFloat(document.getElementById('iskRate').value) || 140.8;
+  if (isk > 0) {
+    document.getElementById('expAmount').value = (isk / rate).toFixed(2);
+  }
+}
+document.getElementById('iskAmount').addEventListener('input', updateEuroFromIsk);
+document.getElementById('iskRate').addEventListener('input', updateEuroFromIsk);
+
+// tasso di cambio EUR->ISK preso una volta al giorno da Frankfurter (Banca Centrale Europea),
+// servizio gratuito senza chiave — se non risponde, resta il valore già presente nel campo
+async function fetchDailyIskRate() {
+  const today = new Date().toISOString().slice(0, 10);
+  const cached = loadStore(STORE_KEYS.iskRateCache, null);
+  if (cached && cached.date === today) {
+    document.getElementById('iskRate').value = cached.rate;
+    return;
+  }
+  const hint = document.querySelector('.isk-converter-hint');
+  const originalHint = hint ? hint.textContent : '';
+  if (hint) hint.textContent = '⏳ Aggiorno il tasso di oggi…';
+  try {
+    const res = await fetch('https://api.frankfurter.app/latest?from=EUR&to=ISK');
+    const data = await res.json();
+    const rate = data && data.rates && data.rates.ISK;
+    if (rate) {
+      document.getElementById('iskRate').value = Math.round(rate * 10) / 10;
+      saveStore(STORE_KEYS.iskRateCache, { rate: Math.round(rate * 10) / 10, date: today });
+      updateEuroFromIsk();
+    }
+  } catch (err) {
+    console.warn('Aggiornamento tasso ISK fallito, uso quello già presente:', err);
+  } finally {
+    if (hint) hint.textContent = originalHint;
+  }
 }
 
 document.getElementById('fabAddExpenseTop').addEventListener('click', openExpenseModal);
